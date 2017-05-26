@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OpenGL;
 using OpenGL.Platform;
+using System.Diagnostics;
 
 namespace Rox {
 
@@ -24,13 +25,16 @@ namespace Rox {
         /// </summary>
         private static string vertexShader2Source = @"
             uniform mat4 projection_matrix;
-            uniform mat4 modelview_matrix;
+            uniform mat4 model_matrix;
+            uniform mat4 view_matrix;
 
             attribute vec3 in_position;
 
             void main(void)
             {
-                gl_Position = projection_matrix * modelview_matrix * vec4(in_position, 1);
+                vec4 appliedModel = model_matrix * vec4(in_position, 1);
+
+                gl_Position = projection_matrix * view_matrix * appliedModel;
             }";
 
         /// <summary>
@@ -47,6 +51,11 @@ namespace Rox {
         // Window Dimensions
         private int _width;
         private int _height;
+
+        private float _rotation = 0.0f;
+        private Vector3 _rotationAxis = new Vector3(0, -1, 0);
+
+        private Matrix4 _translationMatrix;
 
         // Shader Program
         private ShaderProgram _shader;
@@ -84,14 +93,16 @@ namespace Rox {
 
             Matrix4 projectionMatrix = Matrix4.CreatePerspectiveFieldOfView(fieldOfView, aspectRatio, zNearPlane, zFarPlane);
 
-            Matrix4 rotation = Matrix4.CreateRotation(new Vector3(1, -1, 0), 0.2f);
-            Vector3 position = new Vector3(2, 2, -10);
+            Vector3 position = new Vector3(0, 0, -10);
 
-            Matrix4 translationMatrix = Matrix4.CreateTranslation(position) * rotation;
+            _translationMatrix = Matrix4.CreateTranslation(position);
+
+            
 
             // set up some defaults for the shader program project and modelview matrices
             _shader["projection_matrix"].SetValue(projectionMatrix);
-            _shader["modelview_matrix"].SetValue(translationMatrix);
+            _shader["view_matrix"].SetValue(_translationMatrix);
+            _shader["model_matrix"].SetValue(Matrix4.CreateTranslation(new Vector3(0, 0, 0)));
 
             // set the color to blue
             _shader["color"].SetValue(new Vector3(0, 0, 1));
@@ -102,10 +113,28 @@ namespace Rox {
             _cubeVao.DisposeElementArray = true;
         }
 
+        private long _frameTime = 16;
+        private long _lastUpdate = 0;
+
+        private Stopwatch _stopwatch = Stopwatch.StartNew();
+
         public void Run() {
             // handle events and render the frame
             while (Window.Open) {
                 Window.HandleEvents();
+                var currentTime = _stopwatch.ElapsedMilliseconds;
+                if (currentTime - _lastUpdate < _frameTime)
+                {
+                    continue;
+                }
+
+                _lastUpdate = currentTime;
+                
+                _rotation += 0.05f;
+
+                Matrix4 modelMatrix = Matrix4.CreateTranslation(new Vector3(0, 0, 0)) * Matrix4.CreateRotation(_rotationAxis, _rotation);
+                _shader["model_matrix"].SetValue(modelMatrix);
+
                 OnRenderFrame();
             }
 
