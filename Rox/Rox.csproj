@@ -68,6 +68,7 @@
     <Compile Include="Rox\Core\IRoxObject.cs" />
     <Compile Include="Rox\Core\RoxObject.cs" />
     <Compile Include="Rox\Render\Camera.cs" />
+    <Compile Include="Rox\Render\Viewport.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">
