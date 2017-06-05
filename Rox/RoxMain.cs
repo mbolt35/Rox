@@ -10,7 +10,7 @@ using Rox.Core;
 using Rox.Render;
 
 public class RoxMain {
-        
+
     /// <summary>
     /// Entry Point
     /// </summary>
@@ -19,7 +19,7 @@ public class RoxMain {
         var rox = new RoxMain(1280, 720);
         rox.Run();
     }
-        
+    
     /// <summary>
     /// Vertex shader 
     /// </summary>
@@ -33,16 +33,16 @@ public class RoxMain {
         in vec3 in_position;
         in vec3 in_normal;
 
-        out vec3 aPos;
-        out vec3 aNormal;
+        out vec3 FragPos;
+        out vec3 FragNormal;
 
         void main(void)
         {
             vec4 pos = model_matrix * vec4(in_position, 1);
             vec4 norm = model_matrix * vec4(in_normal, 1);
 
-            aPos = pos.xyz;
-            aNormal = norm.xyz;
+            FragPos = pos.xyz;
+            FragNormal = norm.xyz;
     
             gl_Position = projection_matrix * view_matrix * pos;
         }";
@@ -52,51 +52,76 @@ public class RoxMain {
     /// </summary>
     public static string fragmentShader2Source = @"
         #version 330 core
-        uniform vec3 color;
-        uniform vec3 lightPosition;
 
-        in vec3 aPos;
-        in vec3 aNormal;
+        struct Material {
+            vec3 color;
+        };
+
+        struct Light {
+            vec3 position;
+  
+            vec3 ambient;
+            vec3 diffuse;
+            vec3 specular;
+	
+            float constant;
+            float linear;
+            float quadratic;
+        };
+
+        uniform Material material;
+        uniform Light light;
+
+        in vec3 FragPosition;
+        in vec3 FragNormal;
+
+        out vec4 FragColor;
+
+        float attenuation(in Light l, in float distance) {
+            return 1.0f / (l.constant + l.linear * distance + l.quadratic * (distance * distance));
+        }
 
         void main(void)
         {
-            vec3 lightColor = vec3(1, 1, 1);
-            float ambientIntensity = 0.1f;
-            vec3 ambient = ambientIntensity * lightColor;
+            vec3 lightDelta = light.position - FragPosition;
 
-            vec3 n = normalize(aNormal.xyz);
-            vec3 l = normalize(lightPosition - aPos.xyz);
+            vec3 n = normalize(FragNormal);
+            vec3 l = normalize(lightDelta);
 
             float cosTheta = clamp(dot(n, l), 0.0f, 1.0f);
-            vec3 diffuse = cosTheta * lightColor;
+            float lightAttenuation = attenuation(light, length(lightDelta));
 
-            vec3 fragColor = (ambient + diffuse) * color;
-            gl_FragColor = vec4(fragColor, 1);
+            vec3 ambient = light.ambient * lightAttenuation;
+            vec3 diffuse = light.diffuse * lightAttenuation * cosTheta;
+
+            vec3 fragColor = (ambient + diffuse) * material.color;
+            FragColor = vec4(fragColor, 1);
         }";
 
-    // -- Scene Stuff --
+    // Move Increment
+    private static readonly float Inc = 0.1f;
 
-    private IRoxObject _cube;
+    // -- Scene Stuff --
+    private IRenderer _renderer;
     private Viewport _viewport;
     private Camera _mainCamera;
 
-    // -- Scene Stuff -- 
+    private IRoxObject _cube;
+    private VAO _cubeGeometry;
 
-    private float _rotation = 0.0f;
-    private Vector3 _rotationAxis = new Vector3(0, -1, 0);
-    private Vector3 _lightPosition;
 
+    // Instance properties
+    private bool _upDown = false;
+    private bool _downDown = false;
+    private bool _leftDown = false;
+    private bool _rightDown = false;
+    private bool _forwardDown = false;
+    private bool _backDown = false;
+
+    // Frame throttling
+    private Stopwatch _stopwatch = Stopwatch.StartNew();
     private long _frameTime = 16;
     private long _lastUpdate = 0;
-    private bool _forward = true;
-
-    private Stopwatch _stopwatch = Stopwatch.StartNew();
-
-    // Shader Program
-    private ShaderProgram _shader;
-
-    // Cube Vertex Array Object (VAO)
-    private VAO _cubeVao;
         
     /// <summary>
     /// Rox Main Entry
@@ -114,50 +139,65 @@ public class RoxMain {
     /// </summary>
     private void Init() {
         CreateWindow();
-        OpenGLVersions();
+        InitInput();
 
-        // --- Initialization/Window Options ---
-        Gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        Gl.ClearDepthf(1.0f);
+        _renderer = new OpenGLRenderer();
+        Console.WriteLine(_renderer.Version);
 
-        Gl.Enable(EnableCap.Multisample);
-        Gl.Enable(EnableCap.DepthTest);
-        Gl.DepthFunc(DepthFunction.Lequal);
-
-        Gl.Enable(EnableCap.CullFace);
-        Gl.CullFace(CullFaceMode.Back);
-
-        Gl.Enable(EnableCap.Blend);
-        Gl.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-        // --- Initialization/Window Options ---
-
-        // -- Scene --
         _cube = new RoxObject(new Vector3(0, 0, 0));
-        _lightPosition = new Vector3(10, 15, -20);
-        
-        // -- Scene --
-
-        // --- Camera/Renderer ---
-        _shader = new ShaderProgram(vertexShader2Source, fragmentShader2Source);
+        _cubeGeometry = NewCubeWithLightShader();
 
         _mainCamera = new Camera("MainCamera", _viewport);
         _mainCamera.MoveTo(2, 5, -10);
         _mainCamera.LookAt(_cube, Vector3.UnitY);
-        
-        _shader["projection_matrix"].SetValue(_mainCamera.Projection);
-        _shader["view_matrix"].SetValue(_mainCamera.Transform);
-        _shader["lightPosition"].SetValue(_lightPosition);
+    }
 
-        // set the color to blue
-        _shader["color"].SetValue(new Vector3(1, 0, 1));
-        // --- Camera/Renderer ---
+    private void CreateWindow() {
+        Window.CreateWindow("OpenGL", _viewport.Width, _viewport.Height);
 
-        _cubeVao = Geometry.CreateCubeWithNormals(_shader, new Vector3(-1, -1, -1), new Vector3(1, 1, 1));
-        _cubeVao.DisposeChildren = true;
-        _cubeVao.DisposeElementArray = true;
+        Window.OnReshapeCallbacks.Add(() => {
+            _viewport = new Viewport(Window.Width, Window.Height);
+            _mainCamera.Viewport = _viewport;
+        });
+    }
+
+    private void InitInput() {
+        Input.Subscribe('w', new Event((bool state) => _forwardDown = state));
+        Input.Subscribe('a', new Event((bool state) => _leftDown = state));
+        Input.Subscribe('s', new Event((bool state) => _backDown = state));
+        Input.Subscribe('d', new Event((bool state) => _rightDown = state));
+        Input.Subscribe('q', new Event((bool state) => _upDown = state));
+        Input.Subscribe('e', new Event((bool state) => _downDown = state));
+    }
+
+    private void SwapBuffers() {
+        Window.SwapBuffers();
+    }
+
+    private VAO NewCubeWithLightShader() {
+        var cubeVao = Geometry.CreateCubeWithNormals(
+            NewLightShader(),
+            new Vector3(-1, -1, -1),
+            new Vector3(1, 1, 1));
+
+        cubeVao.DisposeChildren = true;
+        cubeVao.DisposeElementArray = true;
+        return cubeVao;
+    }
+
+    private ShaderProgram NewLightShader() {
+        var shader = new ShaderProgram(vertexShader2Source, fragmentShader2Source);
+        shader["light.position"].SetValue(new Vector3(5, 5, -2));
+        shader["light.ambient"].SetValue(new Vector3(0.3f, 0.3f, 0.3f));
+        shader["light.diffuse"].SetValue(Vector3.One);
+        shader["light.specular"].SetValue(Vector3.One);
+        shader["light.constant"].SetValue(1.0f);
+        shader["light.linear"].SetValue(0.045f);
+        shader["light.quadratic"].SetValue(0.0075f);
+        shader["material.color"].SetValue(new Vector3(0.3, 0.3, 1.0));
+        return shader;
     }
     
-
     public void Run() {
         // handle events and render the frame
         while (Window.Open) {
@@ -168,10 +208,10 @@ public class RoxMain {
 
             UpdateScene();
 
-            _shader["view_matrix"].SetValue(_mainCamera.Transform);
-            _shader["model_matrix"].SetValue(_cube.Transform);
+            _renderer.Clear();
+            _renderer.Render(_mainCamera, _cube, _cubeGeometry);
 
-            OnRenderFrame();
+            SwapBuffers();
         }
 
         DisposeScene();
@@ -188,6 +228,27 @@ public class RoxMain {
     }
 
     private void UpdateScene() {
+        var forwardDir = _mainCamera.Forward.Normalize();
+        var upDir = _mainCamera.Up.Normalize();
+        var rightDir = forwardDir.Cross(upDir).Normalize();
+
+        float forwardAdjust = _forwardDown ? Inc : 0.0f;
+        forwardAdjust += _backDown ? -Inc : 0.0f;
+
+        float rightAdjust = _rightDown ? Inc : 0.0f;
+        rightAdjust += _leftDown ? -Inc : 0.0f;
+
+        float upAdjust = _upDown ? Inc : 0.0f;
+        upAdjust += _downDown ? -Inc : 0.0f;
+
+        var moveAmount = (forwardAdjust * forwardDir)
+            + (rightAdjust * rightDir)
+            + (upAdjust * upDir);
+
+        _mainCamera.Move(moveAmount);
+
+
+        /*
         _rotation += 0.01f;
 
         if (_forward) {
@@ -203,42 +264,14 @@ public class RoxMain {
         else if (!_forward && _mainCamera.Position.Y < -2.0f) {
             _forward = true;
         }
+        */
 
-        _cube.Rotate(_rotationAxis, _rotation);
-        _mainCamera.LookAt(_cube, Vector3.UnitY);
+        //_cube.Rotate(_rotationAxis, _rotation);
     }
-
-    private void CreateWindow() {
-        Window.CreateWindow("OpenGL", _viewport.Width, _viewport.Height);
-    }
-
+    
     private void DisposeScene() {
-        _shader.Dispose();
-        _cubeVao.Dispose();
-    }
-
-    private void OnRenderFrame() {
-        UpdateViewport();
-        Clear();
-
-        _cubeVao.Program.Use();
-        _cubeVao.Draw();
-
-        Window.SwapBuffers();
-    }
-
-    public void Clear() {
-        Gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-    }
-
-    public void UpdateViewport() {
-        Gl.Viewport(_viewport.X, _viewport.Y, _viewport.Width, _viewport.Height);
-    }
-
-    private static void OpenGLVersions()
-    {
-        Console.WriteLine("OpenGL Version: {0}", Gl.GetString(OpenGL.StringName.Version));
-        Console.WriteLine("GLSL Version: {0}", Gl.GetString(StringName.ShadingLanguageVersion));
+        _cubeGeometry.Program.Dispose();
+        _cubeGeometry.Dispose();
     }
 }
 

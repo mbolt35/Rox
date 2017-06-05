@@ -10,14 +10,23 @@ namespace Rox.Render {
 
     public class Camera : RoxObject {
 
-        private readonly Viewport _viewport;
+        private Viewport _viewport;
         private float _fieldOfView;
         private float _nearZ;
         private float _farZ;
 
-        private readonly Matrix4 _projection;
+        private Matrix4 _projection;
 
         private readonly Frustum _viewFrustum;
+
+        public Viewport Viewport {
+            get { return _viewport; }
+            set {
+                _viewport = value;
+
+                UpdateViewport();
+            }
+        }
 
         public Matrix4 Projection {
             get { return _projection; }
@@ -38,14 +47,18 @@ namespace Rox.Render {
             _fieldOfView = fov;
             _nearZ = nearZ;
             _farZ = farZ;
-
-            _projection = Matrix4.CreatePerspectiveFieldOfView(
-                _fieldOfView, 
-                _viewport.AspectRatio, 
-                _nearZ, 
-                _farZ);
-
+            
             _viewFrustum = new Frustum();
+
+            UpdateViewport();
+        }
+
+        private void UpdateViewport() {
+            _projection = Matrix4.CreatePerspectiveFieldOfView(
+                _fieldOfView,
+                _viewport.AspectRatio,
+                _nearZ,
+                _farZ);
             _viewFrustum.UpdateFrustum(_projection, Transform);
         }
         

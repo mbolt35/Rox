@@ -25,6 +25,7 @@ namespace Rox.Core {
         private Matrix4 _rotationMatrix;
 
         private bool _dirty = false;
+        private bool _rotationDirty = false;
 
         #endregion
 
@@ -85,6 +86,10 @@ namespace Rox.Core {
         }
         
         public virtual void Move(Vector3 delta) {
+            if (delta.LengthSquared() <= float.Epsilon) {
+                return;
+            }
+
             Position += delta;
             _dirty = true;
         }
@@ -104,26 +109,37 @@ namespace Rox.Core {
 
         public virtual void Rotate(Vector3 axis, float angle) {
             Rotation = Quaternion.FromAngleAxis(angle, axis);
-            _dirty = true;
+            _rotationDirty = true;
         }
 
         public virtual void LookAt(Vector3 target, Vector3 up) {
             _transform = Matrix4.LookAt(Position, target, up);
+            
+            Vector3 z = (target - Position).Normalize();
+            Vector3 x = Vector3.Cross(up, z).Normalize();
+            Vector3 y = Vector3.Cross(z, x).Normalize();
+
+            Rotation = Quaternion.FromRotationMatrix(new Matrix4(
+                new Vector4(x.X, y.X, z.X, 0.0f),
+                new Vector4(x.Y, y.Y, z.Y, 0.0f),
+                new Vector4(x.Z, y.Z, z.Z, 0.0f),
+                Vector4.UnitW));
+
+            _rotationDirty = true;
             _dirty = false;
         }
 
         public virtual void LookAt(IRoxObject obj, Vector3 up) {
-            _transform = Matrix4.LookAt(Position, obj.Position, up);
-            _dirty = false;
+            LookAt(obj.Position, up);
         }
 
         protected virtual bool UpdateRotation(bool force = false) {
-            if (!force && !_dirty) {
+            if (!force && !_rotationDirty) {
                 return false;
             }
 
             _rotationMatrix = Rotation.Matrix4;
-            _dirty = false;
+            _rotationDirty = false;
             return true;
         }
 
