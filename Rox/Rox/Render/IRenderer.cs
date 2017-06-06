@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OpenGL;
+﻿using OpenGL;
 using Rox.Core;
 
 namespace Rox.Render {
@@ -13,11 +8,24 @@ namespace Rox.Render {
     /// </summary>
     public interface IRenderer {
 
+        /// <summary>
+        /// A formatted version string representing the renderer version.
+        /// </summary>
         string Version { get; }
 
+        /// <summary>
+        /// Clears the render
+        /// </summary>
         void Clear();
 
+        /// TODO: Render entire scene.
         // void Render(Camera camera, IRoxScene scene);
-        void Render(Camera camera, IRoxObject obj, VAO geometry);
+
+        /// <summary>
+        /// Renders a single <c>IRenderable</c> to the screen. 
+        /// </summary>
+        /// <param name="camera"></param>
+        /// <param name="renderable"></param>
+        void Render(Camera camera, IRenderable renderable);
     }
 }

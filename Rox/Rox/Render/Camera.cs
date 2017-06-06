@@ -20,7 +20,9 @@ namespace Rox.Render {
         private readonly Frustum _viewFrustum;
 
         public Viewport Viewport {
-            get { return _viewport; }
+            get {
+                return _viewport;
+            }
             set {
                 _viewport = value;
 
@@ -51,6 +53,18 @@ namespace Rox.Render {
             _viewFrustum = new Frustum();
 
             UpdateViewport();
+        }
+
+        /// <summary>
+        /// Determines if the <c>IRenderable</c> implementation is visible from the 
+        /// camera.
+        /// </summary>
+        /// <param name="renderable"></param>
+        /// <returns></returns>
+        public bool IsVisible(IRenderable renderable) {
+            // TODO: Implement AxisAlignedBoundingBox IRenderable::Bounds()
+            //_viewFrustum.Intersects(renderable.Bounds);
+            return true;
         }
 
         private void UpdateViewport() {

@@ -68,8 +68,10 @@
     <Compile Include="Rox\Core\IRoxObject.cs" />
     <Compile Include="Rox\Core\RoxObject.cs" />
     <Compile Include="Rox\Render\Camera.cs" />
+    <Compile Include="Rox\Render\GL\OpenGLRenderable.cs" />
+    <Compile Include="Rox\Render\IRenderable.cs" />
     <Compile Include="Rox\Render\IRenderer.cs" />
-    <Compile Include="Rox\Render\OpenGLRenderer.cs" />
+    <Compile Include="Rox\Render\GL\OpenGLRenderer.cs" />
     <Compile Include="Rox\Render\Viewport.cs" />
   </ItemGroup>
   <ItemGroup>

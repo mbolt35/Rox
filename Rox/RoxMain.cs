@@ -8,6 +8,7 @@ using OpenGL.Platform;
 using System.Diagnostics;
 using Rox.Core;
 using Rox.Render;
+using Rox.Render.GL;
 
 public class RoxMain {
 
@@ -26,9 +27,9 @@ public class RoxMain {
     private static string vertexShader2Source = @"
         #version 330 core
 
-        uniform mat4 projection_matrix;
-        uniform mat4 model_matrix;
-        uniform mat4 view_matrix;
+        uniform mat4 ProjectionMatrix;
+        uniform mat4 ModelMatrix;
+        uniform mat4 ViewMatrix;
 
         in vec3 in_position;
         in vec3 in_normal;
@@ -38,13 +39,13 @@ public class RoxMain {
 
         void main(void)
         {
-            vec4 pos = model_matrix * vec4(in_position, 1);
-            vec4 norm = model_matrix * vec4(in_normal, 1);
+            vec4 pos = ModelMatrix * vec4(in_position, 1);
+            vec4 norm = ModelMatrix * vec4(in_normal, 1);
 
             FragPos = pos.xyz;
             FragNormal = norm.xyz;
     
-            gl_Position = projection_matrix * view_matrix * pos;
+            gl_Position = ProjectionMatrix * ViewMatrix * pos;
         }";
 
     /// <summary>
@@ -54,19 +55,19 @@ public class RoxMain {
         #version 330 core
 
         struct Material {
-            vec3 color;
+            vec3 Color;
         };
 
         struct Light {
-            vec3 position;
+            vec3 Position;
   
-            vec3 ambient;
-            vec3 diffuse;
-            vec3 specular;
+            vec3 Ambient;
+            vec3 Diffuse;
+            vec3 Specular;
 	
-            float constant;
-            float linear;
-            float quadratic;
+            float Constant;
+            float Linear;
+            float Quadratic;
         };
 
         uniform Material material;
@@ -78,12 +79,12 @@ public class RoxMain {
         out vec4 FragColor;
 
         float attenuation(in Light l, in float distance) {
-            return 1.0f / (l.constant + l.linear * distance + l.quadratic * (distance * distance));
+            return 1.0f / (l.Constant + l.Linear * distance + l.Quadratic * (distance * distance));
         }
 
         void main(void)
         {
-            vec3 lightDelta = light.position - FragPosition;
+            vec3 lightDelta = light.Position - FragPosition;
 
             vec3 n = normalize(FragNormal);
             vec3 l = normalize(lightDelta);
@@ -91,10 +92,10 @@ public class RoxMain {
             float cosTheta = clamp(dot(n, l), 0.0f, 1.0f);
             float lightAttenuation = attenuation(light, length(lightDelta));
 
-            vec3 ambient = light.ambient * lightAttenuation;
-            vec3 diffuse = light.diffuse * lightAttenuation * cosTheta;
+            vec3 ambient = light.Ambient * lightAttenuation;
+            vec3 diffuse = light.Diffuse * lightAttenuation * cosTheta;
 
-            vec3 fragColor = (ambient + diffuse) * material.color;
+            vec3 fragColor = (ambient + diffuse) * material.Color;
             FragColor = vec4(fragColor, 1);
         }";
 
@@ -106,9 +107,8 @@ public class RoxMain {
     private Viewport _viewport;
     private Camera _mainCamera;
 
-    private IRoxObject _cube;
-    private VAO _cubeGeometry;
-
+    private IRenderable _cube;
+    private ShaderProgram _program;
 
     // Instance properties
     private bool _upDown = false;
@@ -144,14 +144,13 @@ public class RoxMain {
         _renderer = new OpenGLRenderer();
         Console.WriteLine(_renderer.Version);
 
-        _cube = new RoxObject(new Vector3(0, 0, 0));
-        _cubeGeometry = NewCubeWithLightShader();
+        _cube = NewCubeRenderable();
 
         _mainCamera = new Camera("MainCamera", _viewport);
         _mainCamera.MoveTo(2, 5, -10);
-        _mainCamera.LookAt(_cube, Vector3.UnitY);
+        _mainCamera.LookAt(_cube.Model, Vector3.UnitY);
     }
-
+    
     private void CreateWindow() {
         Window.CreateWindow("OpenGL", _viewport.Width, _viewport.Height);
 
@@ -173,30 +172,6 @@ public class RoxMain {
     private void SwapBuffers() {
         Window.SwapBuffers();
     }
-
-    private VAO NewCubeWithLightShader() {
-        var cubeVao = Geometry.CreateCubeWithNormals(
-            NewLightShader(),
-            new Vector3(-1, -1, -1),
-            new Vector3(1, 1, 1));
-
-        cubeVao.DisposeChildren = true;
-        cubeVao.DisposeElementArray = true;
-        return cubeVao;
-    }
-
-    private ShaderProgram NewLightShader() {
-        var shader = new ShaderProgram(vertexShader2Source, fragmentShader2Source);
-        shader["light.position"].SetValue(new Vector3(5, 5, -2));
-        shader["light.ambient"].SetValue(new Vector3(0.3f, 0.3f, 0.3f));
-        shader["light.diffuse"].SetValue(Vector3.One);
-        shader["light.specular"].SetValue(Vector3.One);
-        shader["light.constant"].SetValue(1.0f);
-        shader["light.linear"].SetValue(0.045f);
-        shader["light.quadratic"].SetValue(0.0075f);
-        shader["material.color"].SetValue(new Vector3(0.3, 0.3, 1.0));
-        return shader;
-    }
     
     public void Run() {
         // handle events and render the frame
@@ -209,7 +184,7 @@ public class RoxMain {
             UpdateScene();
 
             _renderer.Clear();
-            _renderer.Render(_mainCamera, _cube, _cubeGeometry);
+            _renderer.Render(_mainCamera, _cube);
 
             SwapBuffers();
         }
@@ -226,6 +201,9 @@ public class RoxMain {
         _lastUpdate = currentTime;
         return true;
     }
+
+    private float _rotation = 0.0f;
+    private Vector3 _rotationAxis = new Vector3(0.0f, -1.0f, 0.0f);
 
     private void UpdateScene() {
         var forwardDir = _mainCamera.Forward.Normalize();
@@ -247,31 +225,70 @@ public class RoxMain {
 
         _mainCamera.Move(moveAmount);
 
+        
+        _rotation += 0.0001f;
 
-        /*
-        _rotation += 0.01f;
-
-        if (_forward) {
-            _mainCamera.Move(0.0f, 0.02f, 0.0f);
-        }
-        else {
-            _mainCamera.Move(0.0f, -0.02f, 0.0f);
-        }
-
-        if (_forward && _mainCamera.Position.Y > 2.0f) {
-            _forward = false;
-        }
-        else if (!_forward && _mainCamera.Position.Y < -2.0f) {
-            _forward = true;
-        }
-        */
-
-        //_cube.Rotate(_rotationAxis, _rotation);
+        _cube.Model.Move(0.0f, 0.0f, _rotation);
     }
     
     private void DisposeScene() {
-        _cubeGeometry.Program.Dispose();
-        _cubeGeometry.Dispose();
+        _program.Dispose();
+        _cube.Dispose();
+    }
+
+    /// <summary>
+    /// Creates a new renderer instance
+    /// </summary>
+    /// <returns></returns>
+    private IRenderer NewRenderer() {
+        return new OpenGLRenderer();
+    }
+
+    /// <summary>
+    /// Creates a new cube renderable
+    /// </summary>
+    /// <returns></returns>
+    private IRenderable NewCubeRenderable() {
+        var cubeObject = new RoxObject(new Vector3(0, 0, 0));
+        var cubeGeometry = NewCubeWithLightShader();
+
+        return new OpenGLRenderable(cubeObject, cubeGeometry);
+    }
+
+    /// <summary>
+    /// Creates a new cube geometry (VAO) with a light shader.
+    /// </summary>
+    /// <returns></returns>
+    private VAO NewCubeWithLightShader() {
+        _program = NewLightShader();
+
+        var cubeVao = Geometry.CreateCubeWithNormals(
+            _program,
+            new Vector3(-1, -1, -1),
+            new Vector3(1, 1, 1));
+
+        cubeVao.DisposeChildren = true;
+        return cubeVao;
+    }
+
+    /// <summary>
+    /// Creates and sets default values for our light shader.
+    /// </summary>
+    /// <returns></returns>
+    private ShaderProgram NewLightShader() {
+        var shader = new ShaderProgram(vertexShader2Source, fragmentShader2Source);
+        Console.WriteLine("Vertex Shader: {0}", shader.VertexShader.ShaderLog);
+        Console.WriteLine("Fragment Shader: {0}", shader.FragmentShader.ShaderLog);
+
+        shader["light.Position"].SetValue(new Vector3(5, 5, -2));
+        shader["light.Ambient"].SetValue(new Vector3(0.3f, 0.3f, 0.3f));
+        shader["light.Diffuse"].SetValue(Vector3.One);
+        shader["light.Specular"].SetValue(Vector3.One);
+        shader["light.Constant"].SetValue(1.0f);
+        shader["light.Linear"].SetValue(0.045f);
+        shader["light.Quadratic"].SetValue(0.0075f);
+        shader["material.Color"].SetValue(new Vector3(0.3f, 0.3f, 1.0f));
+        return shader;
     }
 }
 

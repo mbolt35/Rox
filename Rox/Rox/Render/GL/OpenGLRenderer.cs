@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using OpenGL;
 using Rox.Core;
 
-namespace Rox.Render {
+namespace Rox.Render.GL {
 
     public class OpenGLRenderer : IRenderer {
 
@@ -38,20 +38,14 @@ namespace Rox.Render {
             Gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
 
-        public void Render( Camera camera, 
-                            IRoxObject obj, 
-                            VAO geometry ) 
+        public void Render(Camera camera, IRenderable renderable) 
         {
             var viewport = camera.Viewport;
             Gl.Viewport(viewport.X, viewport.Y, viewport.Width, viewport.Height);
 
-            var shader = geometry.Program;
-            shader["projection_matrix"].SetValue(camera.Projection);
-            shader["view_matrix"].SetValue(camera.Transform);
-            shader["model_matrix"].SetValue(obj.Transform);
-            
-            shader.Use();
-            geometry.Draw();
+            if (camera.IsVisible(renderable)) {
+                renderable.Draw(camera);
+            }
         }
     }
 }
