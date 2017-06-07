@@ -43,13 +43,12 @@ namespace Rox.Core
 
         #region Methods
 
-        /// <summary>
-        /// Rotates the object on the supplies axis by the angle (in radians?).
-        /// </summary>
-        /// <param name="axis"></param>
-        /// <param name="angle"></param>
-        void Rotate(Vector3 axis, float angle);
-        
+        void RotateX(float x);
+
+        void RotateY(float y);
+
+        void RotateZ(float z);
+
         /// <summary>
         /// Offsets the object by a specific amount.
         /// </summary>

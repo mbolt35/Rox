@@ -1,14 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using OpenGL;
 using OpenGL.Platform;
 using System.Diagnostics;
 using Rox.Core;
 using Rox.Render;
 using Rox.Render.GL;
+using Rox.Util;
+using System.Threading;
 
 public class RoxMain {
 
@@ -33,9 +31,11 @@ public class RoxMain {
 
         in vec3 in_position;
         in vec3 in_normal;
+        in vec2 in_uv;
 
         out vec3 FragPos;
         out vec3 FragNormal;
+        out vec2 FragUV;
 
         void main(void)
         {
@@ -44,6 +44,7 @@ public class RoxMain {
 
             FragPos = pos.xyz;
             FragNormal = norm.xyz;
+            FragUV = in_uv;
     
             gl_Position = ProjectionMatrix * ViewMatrix * pos;
         }";
@@ -73,8 +74,11 @@ public class RoxMain {
         uniform Material material;
         uniform Light light;
 
+        uniform sampler2D tex;
+
         in vec3 FragPosition;
         in vec3 FragNormal;
+        in vec2 FragUV;
 
         out vec4 FragColor;
 
@@ -95,7 +99,9 @@ public class RoxMain {
             vec3 ambient = light.Ambient * lightAttenuation;
             vec3 diffuse = light.Diffuse * lightAttenuation * cosTheta;
 
-            vec3 fragColor = (ambient + diffuse) * material.Color;
+            vec3 fragColor = (ambient + diffuse) * texture(tex, FragUV).rgb;
+            //vec3 fragColor = (ambient + diffuse) * material.Color;
+            //vec3 fragColor = texture(tex, FragUV).rgb;
             FragColor = vec4(fragColor, 1);
         }";
 
@@ -122,7 +128,11 @@ public class RoxMain {
     private Stopwatch _stopwatch = Stopwatch.StartNew();
     private long _frameTime = 16;
     private long _lastUpdate = 0;
-        
+    private float _rotation = 0.0f;
+
+    // Texture
+    private Texture _blockTexture;
+
     /// <summary>
     /// Rox Main Entry
     /// </summary>
@@ -143,6 +153,8 @@ public class RoxMain {
 
         _renderer = new OpenGLRenderer();
         Console.WriteLine(_renderer.Version);
+
+        _blockTexture = new Texture("resources/terrain.png");
 
         _cube = NewCubeRenderable();
 
@@ -167,6 +179,11 @@ public class RoxMain {
         Input.Subscribe('d', new Event((bool state) => _rightDown = state));
         Input.Subscribe('q', new Event((bool state) => _upDown = state));
         Input.Subscribe('e', new Event((bool state) => _downDown = state));
+        
+        Window.OnMouseCallbacks.Add((b, s, x, y) => {
+            Console.WriteLine($"button: {b}, state: {s}, x: {x}, y: {y}");
+            return true;
+        });
     }
 
     private void SwapBuffers() {
@@ -184,6 +201,7 @@ public class RoxMain {
             UpdateScene();
 
             _renderer.Clear();
+            _blockTexture.Use(0);
             _renderer.Render(_mainCamera, _cube);
 
             SwapBuffers();
@@ -201,9 +219,6 @@ public class RoxMain {
         _lastUpdate = currentTime;
         return true;
     }
-
-    private float _rotation = 0.0f;
-    private Vector3 _rotationAxis = new Vector3(0.0f, -1.0f, 0.0f);
 
     private void UpdateScene() {
         var forwardDir = _mainCamera.Forward.Normalize();
@@ -225,13 +240,14 @@ public class RoxMain {
 
         _mainCamera.Move(moveAmount);
 
-        
-        _rotation += 0.0001f;
+        _rotation += (1.0f * RoxMath.ToRadians);
 
-        _cube.Model.Move(0.0f, 0.0f, _rotation);
+        _cube.Model.RotateY(_rotation);
+        _cube.Model.RotateZ(_rotation / 2.0f);
     }
     
     private void DisposeScene() {
+        _blockTexture.Dispose();
         _program.Dispose();
         _cube.Dispose();
     }
@@ -262,10 +278,25 @@ public class RoxMain {
     private VAO NewCubeWithLightShader() {
         _program = NewLightShader();
 
+        /*
         var cubeVao = Geometry.CreateCubeWithNormals(
             _program,
             new Vector3(-1, -1, -1),
-            new Vector3(1, 1, 1));
+            new Vector3(1, 1, 1)); 
+        */
+
+        float uvWidth = 2048.0f / 16.0f;
+        float uvCell = uvWidth / 2048.0f;
+
+        var x = uvCell * 3.0f;
+        var y = uvCell * 15.0f;
+
+        var cubeVao = CreateQuad(
+            _program, 
+            new Vector2(-1, -1), 
+            new Vector2(2, 2), 
+            new Vector2(x, y), 
+            new Vector2(uvCell, uvCell));
 
         cubeVao.DisposeChildren = true;
         return cubeVao;
@@ -287,8 +318,43 @@ public class RoxMain {
         shader["light.Constant"].SetValue(1.0f);
         shader["light.Linear"].SetValue(0.045f);
         shader["light.Quadratic"].SetValue(0.0075f);
+
         shader["material.Color"].SetValue(new Vector3(0.3f, 0.3f, 1.0f));
+        shader["tex"].SetValue(0);
+
         return shader;
+    }
+
+    public static VAO CreateQuad(ShaderProgram program, Vector2 location, Vector2 size, Vector2 uvloc, Vector2 uvsize) {
+        Vector3[] vertices = new Vector3[] {
+            new Vector3(location.X, location.Y, 0),
+            new Vector3(location.X + size.X, location.Y, 0),
+            new Vector3(location.X + size.X, location.Y + size.Y, 0),
+            new Vector3(location.X, location.Y + size.Y, 0)
+        };
+
+        Vector2[] uvs = new Vector2[] {
+            uvloc,
+            new Vector2(uvloc.X + uvsize.X, uvloc.Y),
+            new Vector2(uvloc.X + uvsize.X, uvloc.Y + uvsize.Y),
+            new Vector2(uvloc.X, uvloc.Y + uvsize.Y)
+        };
+
+        Vector3[] normals = new Vector3[] {
+            Vector3.UnitZ,
+            Vector3.UnitZ,
+            Vector3.UnitZ,
+            Vector3.UnitZ
+        };
+
+        int[] indices = new int[] { 0, 1, 2, 2, 3, 0 };
+
+        return new VAO(program, 
+            new VBO<Vector3>(vertices), 
+            new VBO<Vector3>(normals), 
+            new VBO<Vector2>(uvs), 
+            new VBO<int>(indices, BufferTarget.ElementArrayBuffer, 
+            BufferUsageHint.StaticRead));
     }
 }
 
