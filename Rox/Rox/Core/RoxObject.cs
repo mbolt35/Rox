@@ -16,10 +16,8 @@ namespace Rox.Core {
         [Flags]
         private enum DirtyFlag : byte {
             None = 0,
-            RotationAngles = 1,
-            Rotation = 2,
-            RotationLookAt = 4,
-            Translation = 8
+            Rotation = 1,
+            Translation = 2
         }
 
         /// <summary>
@@ -30,17 +28,12 @@ namespace Rox.Core {
         /// <summary>
         /// Transform Matrix
         /// </summary>
-        protected Matrix4 _transform = Matrix4.Identity;
-
-        /// <summary>
-        /// Rotation quaternion
-        /// </summary>
-        protected Quaternion _rotation = Quaternion.Zero;
+        private Matrix4 _transform = Matrix4.Identity;
 
         /// <summary>
         /// Rotation Matrix
         /// </summary>
-        protected Matrix4 _rotationMatrix = Matrix4.Identity;
+        private Matrix4 _rotationMatrix = Matrix4.Identity;
 
         /// <summary>
         /// axis rotations
@@ -48,8 +41,6 @@ namespace Rox.Core {
         private float _xRotation = 0.0f;
         private float _yRotation = 0.0f;
         private float _zRotation = 0.0f;
-
-        protected Vector3 _target = Vector3.Zero;
 
         /// <summary>
         /// Dirty flag for rotation and translation
@@ -60,19 +51,7 @@ namespace Rox.Core {
         /// Returns <c>true</c> if the rotation is dirty.
         /// </summary>
         private bool IsRotationDirty {
-            get { return IsDirtyRotation || IsDirtyRotationAngles || IsDirtyLookAt; }
-        }
-
-        private bool IsDirtyRotationAngles {
-            get { return (_dirty & DirtyFlag.RotationAngles) == DirtyFlag.RotationAngles; }
-        }
-
-        private bool IsDirtyRotation {
             get { return (_dirty & DirtyFlag.Rotation) == DirtyFlag.Rotation; }
-        }
-
-        private bool IsDirtyLookAt {
-            get { return (_dirty & DirtyFlag.RotationLookAt) == DirtyFlag.RotationLookAt; }
         }
 
         /// <summary>
@@ -95,24 +74,15 @@ namespace Rox.Core {
         /// <summary>
         /// Rotation of the current object, represented as a Quaternion.
         /// </summary>
-        public Quaternion Rotation {
-            get {
-                return _rotation;
-            }
-            set {
-                _rotation = value;
-
-                _dirty |= DirtyFlag.Rotation;
-                _dirty &= ~(DirtyFlag.RotationAngles | DirtyFlag.RotationLookAt);
-            }
-        }
+        public Quaternion Rotation { get; protected set; }
 
         /// <summary>
         /// The current transform matrix (translation and rotation) for the object.
         /// </summary>
         public Matrix4 Transform {
             get {
-                UpdateTransform();
+                var isRotationUpdate = UpdateRotation();
+                UpdateTransform(isRotationUpdate);
 
                 return _transform;
             }
@@ -123,10 +93,6 @@ namespace Rox.Core {
         /// </summary>
         public Vector3 Forward {
             get {
-                if (IsDirtyLookAt) {
-                    return (_target - Position).Normalize();
-                }
-
                 UpdateRotation();
 
                 return (_rotationMatrix * Vector3.UnitZ).Normalize();
@@ -187,8 +153,9 @@ namespace Rox.Core {
             Position = position;
             Rotation = rotation;
 
-            _dirty = DirtyFlag.None;
+            _dirty = DirtyFlag.Rotation | DirtyFlag.Translation;
 
+            UpdateRotation();
             UpdateTransform(true);
         }
 
@@ -199,8 +166,7 @@ namespace Rox.Core {
         public void RotateX(float x) {
             _xRotation = x;
 
-            _dirty |= DirtyFlag.RotationAngles;
-            _dirty &= ~(DirtyFlag.Rotation | DirtyFlag.RotationLookAt);
+            _dirty |= DirtyFlag.Rotation;
         }
 
         /// <summary>
@@ -210,8 +176,7 @@ namespace Rox.Core {
         public void RotateY(float y) {
             _yRotation = y;
 
-            _dirty |= DirtyFlag.RotationAngles;
-            _dirty &= ~(DirtyFlag.Rotation | DirtyFlag.RotationLookAt);
+            _dirty |= DirtyFlag.Rotation;
         }
 
         /// <summary>
@@ -221,8 +186,7 @@ namespace Rox.Core {
         public void RotateZ(float z) {
             _zRotation = z;
 
-            _dirty |= DirtyFlag.RotationAngles;
-            _dirty &= ~(DirtyFlag.Rotation | DirtyFlag.RotationLookAt);
+            _dirty |= DirtyFlag.Rotation;
         }
 
         /// <summary>
@@ -274,9 +238,9 @@ namespace Rox.Core {
         /// <param name="target"></param>
         /// <param name="up"></param>
         public virtual void LookAt(Vector3 target, Vector3 up) {
-            _target = target;
+            _transform = Matrix4.LookAt(Position, target, up);
 
-            Vector3 z = (Position - target).Normalize();
+            Vector3 z = (target - Position).Normalize();
             Vector3 x = Vector3.Cross(up, z).Normalize();
             Vector3 y = Vector3.Cross(z, x).Normalize();
 
@@ -286,10 +250,9 @@ namespace Rox.Core {
                 new Vector4(x.Z, y.Z, z.Z, 0.0f),
                 Vector4.UnitW);
 
-            _rotation = Quaternion.FromRotationMatrix(_rotationMatrix);
+            Rotation = Quaternion.FromRotationMatrix(_rotationMatrix);
 
-            _dirty |= DirtyFlag.RotationLookAt;
-            _dirty &= ~(DirtyFlag.Rotation | DirtyFlag.RotationAngles);
+            _dirty &= ~(DirtyFlag.Rotation | DirtyFlag.Translation);
         }
 
         /// <summary>
@@ -302,31 +265,24 @@ namespace Rox.Core {
         }
 
         /// <summary>
-        /// Updates the local rotation
+        /// Updates the rotation, if dirty, for the current object and returns
+        /// a status.
         /// </summary>
         /// <returns></returns>
         protected virtual bool UpdateRotation() {
-            if (IsDirtyLookAt) {
-                return true;
-            }
-
-            if (!IsRotationDirty) {
+            if (!IsRotationDirty) { 
                 return false;
             }
 
-            // Only use dirty euler angles if the Rotation was not set directly
-            if (!IsDirtyRotation && IsDirtyRotationAngles) {
-                _rotation = RoxMath.Euler(_xRotation, 0.0f, 0.0f)
-                    * RoxMath.Euler(0.0f, _yRotation, 0.0f)
-                    * RoxMath.Euler(0.0f, 0.0f, _zRotation);
-            }
+            Rotation = RoxMath.Euler(_xRotation, 0.0f, 0.0f)
+                * RoxMath.Euler(0.0f, _yRotation, 0.0f)
+                * RoxMath.Euler(0.0f, 0.0f, _zRotation);
 
-            _dirty &= ~(DirtyFlag.RotationAngles | DirtyFlag.Rotation);
+            _rotationMatrix = Rotation.Matrix4;
+            _dirty &= ~DirtyFlag.Rotation;
+
             return true;
         }
-
-
-        private float _rot = 0.0f;
 
         /// <summary>
         /// Updates the transform for the current object.
@@ -334,18 +290,11 @@ namespace Rox.Core {
         /// <param name="force"></param>
         /// <returns></returns>
         protected virtual bool UpdateTransform(bool force = false) {
-            if (!force && !IsTranslationDirty && !IsRotationDirty) {
+            if (!force && !IsTranslationDirty) {
                 return false;
             }
-
-            UpdateRotation();
-
-            if (Name == "MainCamera") {
-                _rot += 0.001f;
-            }
-
-            var position = IsDirtyLookAt ? -Position : Position;
-            _transform = Matrix4.CreateTranslation(position) * _rotationMatrix;
+            
+            LookAt(Position + Forward, Up);
 
             _dirty &= ~DirtyFlag.Translation;
             return true;
