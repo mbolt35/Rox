@@ -77,7 +77,8 @@
     <Compile Include="Rox\Util\GLExtensions.cs" />
     <Compile Include="Rox\Util\InstanceNamer.cs" />
     <Compile Include="Rox\Util\MathExtensions.cs" />
-    <Compile Include="Rox\Util\MathUtil.cs" />
+    <Compile Include="Rox\Util\RoxMath.cs" />
+    <Compile Include="Rox\Util\RelativeMouse.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

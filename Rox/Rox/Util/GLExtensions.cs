@@ -2,6 +2,9 @@
 
 namespace Rox.Util {
 
+    /// <summary>
+    /// Contains helper extensions for the <c>OpenGL</c> library.
+    /// </summary>
     public static class GLExtensions {
 
         /// <summary>

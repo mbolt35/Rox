@@ -18,6 +18,16 @@ namespace Rox.Util {
         public static readonly float Pi = (float)Math.PI;
 
         /// <summary>
+        /// 2.0 * Pi constant
+        /// </summary>
+        public static readonly float TwoPi = 2.0f * Pi;
+
+        /// <summary>
+        /// Pi/2.0 constant
+        /// </summary>
+        public static readonly float PiOverTwo = Pi / 2.0f;
+
+        /// <summary>
         /// Radian conversion constant
         /// </summary>
         public static readonly float ToRadians = Pi / 180.0f;
@@ -64,6 +74,11 @@ namespace Rox.Util {
             return new Quaternion(x, y, z, w);
         }
 
+        /// <summary>
+        /// Converts a quaternion into euler angles.
+        /// </summary>
+        /// <param name="q"></param>
+        /// <returns></returns>
         public static Vector3 ToEuler(Quaternion q) {
             float x = q.X;
             float y = q.Y;

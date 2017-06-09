@@ -80,7 +80,7 @@ namespace Rox.Render {
             var didUpdate = base.UpdateTransform(force);
 
             if (didUpdate && null != _viewFrustum) {
-                _viewFrustum.UpdateFrustum(_projection, Transform);
+                _viewFrustum.UpdateFrustum(_projection, _transform);
             }
 
             return didUpdate;

@@ -57,6 +57,7 @@ public class RoxMain {
 
         struct Material {
             vec3 Color;
+            sampler2D Texture;
         };
 
         struct Light {
@@ -74,7 +75,7 @@ public class RoxMain {
         uniform Material material;
         uniform Light light;
 
-        uniform sampler2D tex;
+        //uniform sampler2D tex;
 
         in vec3 FragPosition;
         in vec3 FragNormal;
@@ -99,9 +100,8 @@ public class RoxMain {
             vec3 ambient = light.Ambient * lightAttenuation;
             vec3 diffuse = light.Diffuse * lightAttenuation * cosTheta;
 
-            vec3 fragColor = (ambient + diffuse) * texture(tex, FragUV).rgb;
-            //vec3 fragColor = (ambient + diffuse) * material.Color;
-            //vec3 fragColor = texture(tex, FragUV).rgb;
+            ///vec3 fragColor = (ambient + diffuse) * texture(material.Texture, FragUV).rgb;
+            vec3 fragColor = (ambient + diffuse) * material.Color;
             FragColor = vec4(fragColor, 1);
         }";
 
@@ -132,6 +132,12 @@ public class RoxMain {
 
     // Texture
     private Texture _blockTexture;
+
+    // Input
+    private float _mouseRotationX = 0;
+    private float _mouseRotationY = 0;
+
+    private Vector2 _lookRotation = new Vector2();
 
     /// <summary>
     /// Rox Main Entry
@@ -179,7 +185,49 @@ public class RoxMain {
         Input.Subscribe('d', new Event((bool state) => _rightDown = state));
         Input.Subscribe('q', new Event((bool state) => _upDown = state));
         Input.Subscribe('e', new Event((bool state) => _downDown = state));
-        
+
+        RelativeMouse.Enabled = true;
+
+        RelativeMouse.AddListener((x, y) => {
+            //Console.WriteLine($"x: {x}, y: {y}");
+
+            _mouseRotationX += (x / 5.0f);
+            float iRotY = _mouseRotationY + (y / 5.0f);
+            _mouseRotationY = iRotY >= _viewport.Height ? (_viewport.Height - 1) : iRotY;
+
+            _mouseRotationX = (_mouseRotationX % _viewport.Width);
+            _mouseRotationY = (_mouseRotationY % _viewport.Height);
+
+
+            float hw = (float)_viewport.Width / 2.0f;
+            float hh = (float)_viewport.Height / 2.0f;
+
+            float rotX = (_mouseRotationY - hh) / hh;
+            float rotY = (_mouseRotationX - hw) / hw;
+
+            var minXRads = -89.0f * RoxMath.ToRadians;
+            var maxXRads = 89.0f * RoxMath.ToRadians;
+
+            var minYRads = -360.0f * RoxMath.ToRadians;
+            var maxYRads = 360.0f * RoxMath.ToRadians;
+
+            if (rotX < minXRads) {
+                rotX = minXRads;
+            } else if (rotX > maxXRads) {
+                rotX = maxXRads;
+            }
+
+            if (rotY < minYRads) {
+                rotY = minYRads;
+            } else if (rotY > maxYRads) {
+                rotY = maxYRads;
+            }
+
+
+            _lookRotation.X = rotX;// * RoxMath.PiOverTwo;
+            _lookRotation.Y = rotY;// * RoxMath.TwoPi;
+        });
+
         Window.OnMouseCallbacks.Add((b, s, x, y) => {
             Console.WriteLine($"button: {b}, state: {s}, x: {x}, y: {y}");
             return true;
@@ -194,6 +242,8 @@ public class RoxMain {
         // handle events and render the frame
         while (Window.Open) {
             Window.HandleEvents();
+            RelativeMouse.HandleEvents();
+
             if (!IsElapsedFrame()) {
                 continue;
             }
@@ -242,8 +292,18 @@ public class RoxMain {
 
         _rotation += (1.0f * RoxMath.ToRadians);
 
+        Quaternion xQuat = Quaternion.FromAngleAxis(_lookRotation.X, Vector3.UnitY);
+        Quaternion yQuat = Quaternion.FromAngleAxis(_lookRotation.Y, -Vector3.UnitX);
+
+        //_mainCamera.Rotation = xQuat * yQuat;
+        //Console.WriteLine($"Forward: {_mainCamera.Forward}");
+        
+        
+
+        //Console.WriteLine($"Camera.Forward: {_mainCamera.Forward}");
+
         _cube.Model.RotateY(_rotation);
-        _cube.Model.RotateZ(_rotation / 2.0f);
+        //_cube.Model.RotateZ(_rotation / 2.0f);
     }
     
     private void DisposeScene() {
@@ -278,13 +338,13 @@ public class RoxMain {
     private VAO NewCubeWithLightShader() {
         _program = NewLightShader();
 
-        /*
+        /**/
         var cubeVao = Geometry.CreateCubeWithNormals(
             _program,
             new Vector3(-1, -1, -1),
             new Vector3(1, 1, 1)); 
-        */
-
+        
+        /*
         float uvWidth = 2048.0f / 16.0f;
         float uvCell = uvWidth / 2048.0f;
 
@@ -297,6 +357,7 @@ public class RoxMain {
             new Vector2(2, 2), 
             new Vector2(x, y), 
             new Vector2(uvCell, uvCell));
+        */
 
         cubeVao.DisposeChildren = true;
         return cubeVao;
@@ -320,7 +381,7 @@ public class RoxMain {
         shader["light.Quadratic"].SetValue(0.0075f);
 
         shader["material.Color"].SetValue(new Vector3(0.3f, 0.3f, 1.0f));
-        shader["tex"].SetValue(0);
+        shader["material.Texture"].SetValue(0);
 
         return shader;
     }
