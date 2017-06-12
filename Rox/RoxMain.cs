@@ -7,6 +7,7 @@ using Rox.Render;
 using Rox.Render.GL;
 using Rox.Util;
 using System.Threading;
+using System.Collections.Generic;
 
 public class RoxMain {
 
@@ -18,92 +19,14 @@ public class RoxMain {
         var rox = new RoxMain(1280, 720);
         rox.Run();
     }
-    
-    /// <summary>
-    /// Vertex shader 
-    /// </summary>
-    private static string vertexShader2Source = @"
-        #version 330 core
-
-        uniform mat4 ProjectionMatrix;
-        uniform mat4 ModelMatrix;
-        uniform mat4 ViewMatrix;
-
-        in vec3 in_position;
-        in vec3 in_normal;
-        in vec2 in_uv;
-
-        out vec3 FragPos;
-        out vec3 FragNormal;
-        out vec2 FragUV;
-
-        void main(void)
-        {
-            vec4 pos = ModelMatrix * vec4(in_position, 1);
-            vec4 norm = ModelMatrix * vec4(in_normal, 1);
-
-            FragPos = pos.xyz;
-            FragNormal = norm.xyz;
-            FragUV = in_uv;
-    
-            gl_Position = ProjectionMatrix * ViewMatrix * pos;
-        }";
 
     /// <summary>
-    /// Fragment Shader
+    /// Renderable with an acompanying color value.
     /// </summary>
-    public static string fragmentShader2Source = @"
-        #version 330 core
-
-        struct Material {
-            vec3 Color;
-            sampler2D Texture;
-        };
-
-        struct Light {
-            vec3 Position;
-  
-            vec3 Ambient;
-            vec3 Diffuse;
-            vec3 Specular;
-	
-            float Constant;
-            float Linear;
-            float Quadratic;
-        };
-
-        uniform Material material;
-        uniform Light light;
-
-        //uniform sampler2D tex;
-
-        in vec3 FragPosition;
-        in vec3 FragNormal;
-        in vec2 FragUV;
-
-        out vec4 FragColor;
-
-        float attenuation(in Light l, in float distance) {
-            return 1.0f / (l.Constant + l.Linear * distance + l.Quadratic * (distance * distance));
-        }
-
-        void main(void)
-        {
-            vec3 lightDelta = light.Position - FragPosition;
-
-            vec3 n = normalize(FragNormal);
-            vec3 l = normalize(lightDelta);
-
-            float cosTheta = clamp(dot(n, l), 0.0f, 1.0f);
-            float lightAttenuation = attenuation(light, length(lightDelta));
-
-            vec3 ambient = light.Ambient * lightAttenuation;
-            vec3 diffuse = light.Diffuse * lightAttenuation * cosTheta;
-
-            ///vec3 fragColor = (ambient + diffuse) * texture(material.Texture, FragUV).rgb;
-            vec3 fragColor = (ambient + diffuse) * material.Color;
-            FragColor = vec4(fragColor, 1);
-        }";
+    private class ColorRenderable {
+        public IRenderable Renderable;
+        public Vector3 Color;
+    }
 
     // Move Increment
     private static readonly float Inc = 0.1f;
@@ -114,7 +37,10 @@ public class RoxMain {
     private Camera _mainCamera;
 
     private IRenderable _cube;
+    private List<ColorRenderable> _axis;
+
     private ShaderProgram _program;
+    private ShaderProgram _simple;
 
     // Instance properties
     private bool _upDown = false;
@@ -134,9 +60,8 @@ public class RoxMain {
     private Texture _blockTexture;
 
     // Input
-    private float _mouseRotationX = 0;
-    private float _mouseRotationY = 0;
-
+    private float _mouseX = 0;
+    private float _mouseY = 0;
     private Vector2 _lookRotation = new Vector2();
 
     /// <summary>
@@ -158,11 +83,11 @@ public class RoxMain {
         InitInput();
 
         _renderer = new OpenGLRenderer();
-        Console.WriteLine(_renderer.Version);
 
         _blockTexture = new Texture("resources/terrain.png");
 
         _cube = NewCubeRenderable();
+        _axis = NewAxisGeometry();
 
         _mainCamera = new Camera("MainCamera", _viewport);
         _mainCamera.MoveTo(2, 5, -10);
@@ -171,11 +96,13 @@ public class RoxMain {
     
     private void CreateWindow() {
         Window.CreateWindow("OpenGL", _viewport.Width, _viewport.Height);
-
+        
         Window.OnReshapeCallbacks.Add(() => {
             _viewport = new Viewport(Window.Width, Window.Height);
             _mainCamera.Viewport = _viewport;
         });
+
+        Console.WriteLine($"{GLHelper.DumpComputeShaderCounts()}");
     }
 
     private void InitInput() {
@@ -188,46 +115,31 @@ public class RoxMain {
 
         RelativeMouse.Enabled = true;
 
+        const float SpeedReduction = 5.0f;
+        const float ClampY = 89.0f * RoxMath.ToRadians;
+
+        // Relative mouse movement handler (Mouse lock enabled)
         RelativeMouse.AddListener((x, y) => {
-            //Console.WriteLine($"x: {x}, y: {y}");
+            // Aggregate x and y values -- Hard Constraint on +Y axis
+            _mouseX = _mouseX + (x / SpeedReduction);
+            _mouseY = RoxMath.Min(_mouseY + (y / SpeedReduction), _viewport.Height - 1.0f);
+            
+            // Pull any out of bounds coordinates back into window coordinates
+            _mouseX = (_mouseX % _viewport.Width);
+            _mouseY = (_mouseY % _viewport.Height);
 
-            _mouseRotationX += (x / 5.0f);
-            float iRotY = _mouseRotationY + (y / 5.0f);
-            _mouseRotationY = iRotY >= _viewport.Height ? (_viewport.Height - 1) : iRotY;
+            // Map to Window ratio
+            _lookRotation.X = (_mouseX / _viewport.Width) * RoxMath.TwoPi;
+            _lookRotation.Y = (_mouseY / _viewport.Height) * RoxMath.Pi;
 
-            _mouseRotationX = (_mouseRotationX % _viewport.Width);
-            _mouseRotationY = (_mouseRotationY % _viewport.Height);
-
-
-            float hw = (float)_viewport.Width / 2.0f;
-            float hh = (float)_viewport.Height / 2.0f;
-
-            float rotX = (_mouseRotationY - hh) / hh;
-            float rotY = (_mouseRotationX - hw) / hw;
-
-            var minXRads = -89.0f * RoxMath.ToRadians;
-            var maxXRads = 89.0f * RoxMath.ToRadians;
-
-            var minYRads = -360.0f * RoxMath.ToRadians;
-            var maxYRads = 360.0f * RoxMath.ToRadians;
-
-            if (rotX < minXRads) {
-                rotX = minXRads;
-            } else if (rotX > maxXRads) {
-                rotX = maxXRads;
-            }
-
-            if (rotY < minYRads) {
-                rotY = minYRads;
-            } else if (rotY > maxYRads) {
-                rotY = maxYRads;
-            }
-
-
-            _lookRotation.X = rotX;// * RoxMath.PiOverTwo;
-            _lookRotation.Y = rotY;// * RoxMath.TwoPi;
+            // Constrain to:
+            //   (-360, 360) for x-axis
+            //   (-89, 89) for y-axis
+            _lookRotation.X = RoxMath.Clamp(_lookRotation.X, RoxMath.TwoPi);
+            _lookRotation.Y = RoxMath.Clamp(_lookRotation.Y, ClampY);
         });
 
+        // TBD: Voxel modification
         Window.OnMouseCallbacks.Add((b, s, x, y) => {
             Console.WriteLine($"button: {b}, state: {s}, x: {x}, y: {y}");
             return true;
@@ -252,7 +164,18 @@ public class RoxMain {
 
             _renderer.Clear();
             _blockTexture.Use(0);
+
+            foreach (var axis in _axis) {
+                var renderable = (OpenGLRenderable)axis.Renderable;
+                var shader = renderable.Geometry.Program;
+                shader.Use();
+                shader["Color"].SetValue(axis.Color);
+
+                _renderer.Render(_mainCamera, renderable);
+            }
+
             _renderer.Render(_mainCamera, _cube);
+
 
             SwapBuffers();
         }
@@ -289,27 +212,22 @@ public class RoxMain {
             + (upAdjust * upDir);
 
         _mainCamera.Move(moveAmount);
-
+        _mainCamera.RotateX(_lookRotation.Y);
+        _mainCamera.RotateY(-_lookRotation.X);
+        
         _rotation += (1.0f * RoxMath.ToRadians);
-
-        Quaternion xQuat = Quaternion.FromAngleAxis(_lookRotation.X, Vector3.UnitY);
-        Quaternion yQuat = Quaternion.FromAngleAxis(_lookRotation.Y, -Vector3.UnitX);
-
-        //_mainCamera.Rotation = xQuat * yQuat;
-        //Console.WriteLine($"Forward: {_mainCamera.Forward}");
-        
-        
-
-        //Console.WriteLine($"Camera.Forward: {_mainCamera.Forward}");
-
         _cube.Model.RotateY(_rotation);
-        //_cube.Model.RotateZ(_rotation / 2.0f);
     }
     
     private void DisposeScene() {
         _blockTexture.Dispose();
         _program.Dispose();
+        _simple.Dispose();
         _cube.Dispose();
+
+        foreach (var renderable in _axis) {
+            renderable.Renderable.Dispose();
+        }
     }
 
     /// <summary>
@@ -332,13 +250,43 @@ public class RoxMain {
     }
 
     /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    private List<ColorRenderable> NewAxisGeometry() {
+        _simple = NewAxisShader();
+
+        const float Length = 100.0f;
+        const float Width = 0.02f;
+        var xAxisVao = Geometry.CreateCube(_simple, new Vector3(-Length, -Width, -Width), new Vector3(Length, Width, Width));
+        var yAxisVao = Geometry.CreateCube(_simple, new Vector3(-Width, -Length, -Width), new Vector3(Width, Length, Width));
+        var zAxisVao = Geometry.CreateCube(_simple, new Vector3(-Width, -Width, -Length), new Vector3(Width, Width, Length));
+
+        xAxisVao.DisposeChildren = yAxisVao.DisposeChildren = zAxisVao.DisposeChildren = true;
+
+        return new List<ColorRenderable>() {
+            new ColorRenderable() {
+                Renderable = new OpenGLRenderable(new RoxObject("XAxis"), xAxisVao),
+                Color = new Vector3(1.0f, 0.0f, 0.0f)
+            },
+            new ColorRenderable() {
+                Renderable = new OpenGLRenderable(new RoxObject("yAxis"), yAxisVao),
+                Color = new Vector3(0.0f, 1.0f, 0.0f)
+            },
+            new ColorRenderable() {
+                Renderable = new OpenGLRenderable(new RoxObject("zAxis"), zAxisVao),
+                Color = new Vector3(0.0f, 0.0f, 1.0f)
+            }
+        };
+    }
+
+    /// <summary>
     /// Creates a new cube geometry (VAO) with a light shader.
     /// </summary>
     /// <returns></returns>
     private VAO NewCubeWithLightShader() {
         _program = NewLightShader();
-
-        /**/
+        
         var cubeVao = Geometry.CreateCubeWithNormals(
             _program,
             new Vector3(-1, -1, -1),
@@ -368,21 +316,30 @@ public class RoxMain {
     /// </summary>
     /// <returns></returns>
     private ShaderProgram NewLightShader() {
-        var shader = new ShaderProgram(vertexShader2Source, fragmentShader2Source);
+        var shader = GLHelper.NewShader("resources/light-vert.glsl", "resources/light-frag.glsl");
         Console.WriteLine("Vertex Shader: {0}", shader.VertexShader.ShaderLog);
         Console.WriteLine("Fragment Shader: {0}", shader.FragmentShader.ShaderLog);
 
         shader["light.Position"].SetValue(new Vector3(5, 5, -2));
         shader["light.Ambient"].SetValue(new Vector3(0.3f, 0.3f, 0.3f));
         shader["light.Diffuse"].SetValue(Vector3.One);
-        shader["light.Specular"].SetValue(Vector3.One);
+        //shader["light.Specular"].SetValue(Vector3.One);
         shader["light.Constant"].SetValue(1.0f);
         shader["light.Linear"].SetValue(0.045f);
         shader["light.Quadratic"].SetValue(0.0075f);
 
         shader["material.Color"].SetValue(new Vector3(0.3f, 0.3f, 1.0f));
-        shader["material.Texture"].SetValue(0);
+        //shader["material.Texture"].SetValue(0);
 
+        return shader;
+    }
+
+    private ShaderProgram NewAxisShader() {
+        var shader = GLHelper.NewShader("resources/axis-vert.glsl", "resources/axis-frag.glsl");
+        Console.WriteLine("Vertex Shader: {0}", shader.VertexShader.ShaderLog);
+        Console.WriteLine("Fragment Shader: {0}", shader.FragmentShader.ShaderLog);
+
+        shader["Color"].SetValue(new Vector3(1.0f, 0.0f, 0.0f));
         return shader;
     }
 
@@ -418,15 +375,3 @@ public class RoxMain {
             BufferUsageHint.StaticRead));
     }
 }
-
-// 1. Create Window
-//   - Windows APIs to CreateWindow
-//   - Create OpenGL Context
-//   - Attach OpenGL Context to Window
-// 2. Run Loop
-//   - Checks for Window existance 
-//   - Handles incoming Input Events
-//   - Renders Scene, Flip Buffers
-// 3. On Window Exit
-//   - Destroy Window
-//   - Destroy OpenGL Context

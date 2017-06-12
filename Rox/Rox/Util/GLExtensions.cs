@@ -16,6 +16,5 @@ namespace Rox.Util {
             Gl.ActiveTexture(unit);
             Gl.BindTexture(@this);
         }
-
     }
 }

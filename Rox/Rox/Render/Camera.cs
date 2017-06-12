@@ -55,6 +55,25 @@ namespace Rox.Render {
             UpdateViewport();
         }
 
+        public void UpdateMouseView(float pitch, float yaw) {
+            float cosPitch = (float)Math.Cos(pitch);
+            float sinPitch = (float)Math.Sin(pitch);
+            float cosYaw = (float)Math.Cos(yaw);
+            float sinYaw = (float)Math.Sin(yaw);
+
+            Vector3 xAxis = new Vector3(cosYaw, 0, -sinYaw);
+            Vector3 yAxis = new Vector3(sinYaw * sinPitch, cosPitch, cosYaw * sinPitch);
+            Vector3 zAxis = new Vector3(sinYaw * cosPitch, -sinPitch, cosPitch * cosYaw);
+
+            _transform = new Matrix4(
+                new Vector4(xAxis, 0.0f),
+                new Vector4(yAxis, 0.0f),
+                new Vector4(zAxis, 0.0f),
+                new Vector4(-Position, 1.0f));
+
+            _dirty &= ~(DirtyFlag.Rotation | DirtyFlag.Translation);
+        }
+        
         /// <summary>
         /// Determines if the <c>IRenderable</c> implementation is visible from the 
         /// camera.

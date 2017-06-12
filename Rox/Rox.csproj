@@ -75,6 +75,7 @@
     <Compile Include="Rox\Render\GL\OpenGLRenderer.cs" />
     <Compile Include="Rox\Render\Viewport.cs" />
     <Compile Include="Rox\Util\GLExtensions.cs" />
+    <Compile Include="Rox\Util\GLHelper.cs" />
     <Compile Include="Rox\Util\InstanceNamer.cs" />
     <Compile Include="Rox\Util\MathExtensions.cs" />
     <Compile Include="Rox\Util\RoxMath.cs" />
@@ -86,6 +87,18 @@
     </None>
     <None Include="packages.config">
       <SubType>Designer</SubType>
+    </None>
+    <None Include="resources\axis-frag.glsl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="resources\axis-vert.glsl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="resources\light-frag.glsl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="resources\light-vert.glsl">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
   <ItemGroup>

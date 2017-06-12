@@ -14,7 +14,7 @@ namespace Rox.Core {
         /// the object.
         /// </summary>
         [Flags]
-        private enum DirtyFlag : byte {
+        protected enum DirtyFlag : byte {
             None = 0,
             Rotation = 1,
             Translation = 2
@@ -28,12 +28,12 @@ namespace Rox.Core {
         /// <summary>
         /// Transform Matrix
         /// </summary>
-        private Matrix4 _transform = Matrix4.Identity;
+        protected Matrix4 _transform = Matrix4.Identity;
 
         /// <summary>
         /// Rotation Matrix
         /// </summary>
-        private Matrix4 _rotationMatrix = Matrix4.Identity;
+        protected Matrix4 _rotationMatrix = Matrix4.Identity;
 
         /// <summary>
         /// axis rotations
@@ -45,19 +45,19 @@ namespace Rox.Core {
         /// <summary>
         /// Dirty flag for rotation and translation
         /// </summary>
-        private DirtyFlag _dirty = DirtyFlag.None;
+        protected DirtyFlag _dirty = DirtyFlag.None;
 
         /// <summary>
         /// Returns <c>true</c> if the rotation is dirty.
         /// </summary>
-        private bool IsRotationDirty {
+        protected bool IsRotationDirty {
             get { return (_dirty & DirtyFlag.Rotation) == DirtyFlag.Rotation; }
         }
 
         /// <summary>
         /// Returns <c>true</c> if the translation for the object is dirty.
         /// </summary>
-        private bool IsTranslationDirty {
+        protected bool IsTranslationDirty {
             get { return (_dirty & DirtyFlag.Translation) == DirtyFlag.Translation; }
         }
 
@@ -274,11 +274,12 @@ namespace Rox.Core {
                 return false;
             }
 
-            Rotation = RoxMath.Euler(_xRotation, 0.0f, 0.0f)
-                * RoxMath.Euler(0.0f, _yRotation, 0.0f)
+            Rotation = RoxMath.Euler(0.0f, _yRotation, 0.0f)
+                * RoxMath.Euler(_xRotation, 0.0f, 0.0f)
                 * RoxMath.Euler(0.0f, 0.0f, _zRotation);
 
             _rotationMatrix = Rotation.Matrix4;
+
             _dirty &= ~DirtyFlag.Rotation;
 
             return true;
@@ -294,7 +295,7 @@ namespace Rox.Core {
                 return false;
             }
             
-            LookAt(Position + Forward, Up);
+            LookAt(Position + Forward, Vector3.UnitY);
 
             _dirty &= ~DirtyFlag.Translation;
             return true;

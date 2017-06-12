@@ -37,7 +37,6 @@ namespace Rox.Util {
         public static bool Enabled {
             get {
                 return _enabled;
-                //return SDL.SDL_GetRelativeMouseMode() == SDL.SDL_bool.SDL_TRUE;
             }
             set {
                 if (value == _enabled) {
