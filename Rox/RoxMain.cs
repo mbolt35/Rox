@@ -6,7 +6,6 @@ using Rox.Core;
 using Rox.Render;
 using Rox.Render.GL;
 using Rox.Util;
-using System.Threading;
 using System.Collections.Generic;
 
 public class RoxMain {
@@ -19,7 +18,7 @@ public class RoxMain {
         var rox = new RoxMain(1280, 720);
         rox.Run();
     }
-
+    
     /// <summary>
     /// Renderable with an acompanying color value.
     /// </summary>

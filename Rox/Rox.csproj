@@ -68,18 +68,22 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rox\Core\IRoxObject.cs" />
     <Compile Include="Rox\Core\RoxObject.cs" />
+    <Compile Include="Rox\Terrain\OpenSimplexNoise.cs" />
     <Compile Include="Rox\Render\Camera.cs" />
     <Compile Include="Rox\Render\GL\OpenGLRenderable.cs" />
     <Compile Include="Rox\Render\IRenderable.cs" />
     <Compile Include="Rox\Render\IRenderer.cs" />
     <Compile Include="Rox\Render\GL\OpenGLRenderer.cs" />
     <Compile Include="Rox\Render\Viewport.cs" />
+    <Compile Include="Rox\Terrain\TerrainGenerator.cs" />
     <Compile Include="Rox\Util\GLExtensions.cs" />
     <Compile Include="Rox\Util\GLHelper.cs" />
     <Compile Include="Rox\Util\InstanceNamer.cs" />
     <Compile Include="Rox\Util\MathExtensions.cs" />
     <Compile Include="Rox\Util\RoxMath.cs" />
     <Compile Include="Rox\Util\RelativeMouse.cs" />
+    <Compile Include="Rox\Voxel\Block.cs" />
+    <Compile Include="Rox\Voxel\BlockType.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">
@@ -105,6 +109,7 @@
     <Folder Include="libs\" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="noise.png" />
     <Content Include="resources\terrain.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
