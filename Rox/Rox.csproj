@@ -109,7 +109,6 @@
     <Folder Include="libs\" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="noise.png" />
     <Content Include="resources\terrain.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
