@@ -1,10 +1,12 @@
-﻿using OpenGL;
+﻿using System.Runtime.InteropServices;
+using OpenGL;
 
 namespace Rox.Voxel {
     
     /// <summary>
     /// 
     /// </summary>
+    [StructLayout(LayoutKind.Sequential, Pack = 2)] 
     public struct Block {
 
         /// <summary>

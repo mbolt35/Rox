@@ -7,6 +7,9 @@ using Rox.Render;
 using Rox.Render.GL;
 using Rox.Util;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using Rox.Voxel;
+using Rox.Geom;
 
 public class RoxMain {
 
@@ -14,7 +17,7 @@ public class RoxMain {
     /// Entry Point
     /// </summary>
     /// <param name="args"></param>
-    public static void Main(string[] args) {
+    public unsafe static void Main(string[] args) {
         var rox = new RoxMain(1280, 720);
         rox.Run();
     }
@@ -63,6 +66,11 @@ public class RoxMain {
     private float _mouseY = 0;
     private Vector2 _lookRotation = new Vector2();
 
+    // Chunk!
+    private Chunk _chunk = new Chunk(Vector3.Zero);
+    private List<IRenderable> _chunkMesh;
+
+
     /// <summary>
     /// Rox Main Entry
     /// </summary>
@@ -91,6 +99,44 @@ public class RoxMain {
         _mainCamera = new Camera("MainCamera", _viewport);
         _mainCamera.MoveTo(2, 5, -10);
         _mainCamera.LookAt(_cube.Model, Vector3.UnitY);
+
+        InitChunk();
+
+        _chunkMesh = CreateMesh(_chunk);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    private void InitChunk() {
+        for (uint x = 0; x < Chunk.Width; ++x) {
+            for (uint y = 0; y < Chunk.Height; ++y) {
+                for (uint z = 0; z < Chunk.Depth; ++z) {
+                    _chunk.Set(x, y, z, BlockType.Dirt);
+                }
+            }
+        }
+    }
+
+    private List<IRenderable> CreateMesh(Chunk chunk) {
+        var cubes = new List<IRenderable>(Chunk.Width * Chunk.Height * Chunk.Depth);
+
+        for (uint x = 0; x < Chunk.Width; ++x) {
+            for (uint y = 0; y < Chunk.Height; ++y) {
+                for (uint z = 0; z < Chunk.Depth; ++z) {
+                    var block = _chunk.At(x, y, z);
+                    if (block.BlockType != BlockType.Air) {
+                        var renderable = new OpenGLRenderable(
+                            new RoxObject(),
+                            Geometry.CreateCubeWithNormals(_program, new Vector3(x, y, z), new Vector3(x + 1, y + 1, z + 1)));
+
+                        cubes.Add(renderable);
+                    }
+                }
+            }
+        }
+
+        return cubes;
     }
     
     private void CreateWindow() {
@@ -173,9 +219,12 @@ public class RoxMain {
                 _renderer.Render(_mainCamera, renderable);
             }
 
-            _renderer.Render(_mainCamera, _cube);
-
-
+            foreach (var voxelVao in _chunkMesh) {
+                _renderer.Render(_mainCamera, voxelVao);
+            }
+            
+            //_renderer.Render(_mainCamera, _cube);
+            
             SwapBuffers();
         }
 

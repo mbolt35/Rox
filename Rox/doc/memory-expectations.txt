@@ -1,0 +1,45 @@
+General Memory Expectations for Block Data
+
+  Vector3: 12 bytes
+BlockType: 1 byte
+---------------------
+           13 bytes
+---------------------
+    Block: 16 bytes
+
+
+||  byte  |  byte  ||  byte  |  byte ||  byte  |  byte ||  byte  |  byte  ||  byte  |  byte ||  byte  |  byte ||  byte  |  byte  ||  byte  |  byte ||
+||                 X                 ||                 Y                 ||                 Z                ||  BT    | --------- PAD ---------- ||
+
+Theoretical:
+ - Chunk Size: 16x16x16
+ - World View: 64x6x64
+
+Total Chunks:
+64 * 6 * 64 = 24576
+
+Total Blocks Per Chunk:
+16 * 16 * 16 = 4096
+
+Total Bytes Per Block:
+14 bytes
+
+Total Bytes Per Chunk:
+57344 bytes
+{Rox.Voxel.Block[16, 16, 16]} 57,380
+
+Total Blocks
+24576 * 4096 = 100663296
+
+Total Bytes:
+100663296 * 14 = 
+
+1409286144 bytes
+1409 mb
+
+
+---> 1.4 gb <---
+Just of Block data stored in RAM
+
+
+
