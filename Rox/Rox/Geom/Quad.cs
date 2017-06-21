@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System;
 using OpenGL;
 
 namespace Rox.Geom {
@@ -23,6 +24,16 @@ namespace Rox.Geom {
             V1 = v1;
             V2 = v2;
             V3 = v3;
+        }
+
+        public UvVertex At(int index) {
+            switch(index) {
+                case 0: return V0;
+                case 1: return V1;
+                case 2: return V2;
+                case 3: return V3;
+                default: throw new IndexOutOfRangeException($"Index: {index} is out of range.");
+            }
         }
     }
 }

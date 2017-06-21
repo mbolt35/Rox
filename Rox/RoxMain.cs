@@ -10,6 +10,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Rox.Voxel;
 using Rox.Geom;
+using Rox.Terrain;
+using Rox.Terrain.Noise;
 
 public class RoxMain {
 
@@ -20,6 +22,13 @@ public class RoxMain {
     public unsafe static void Main(string[] args) {
         var rox = new RoxMain(1280, 720);
         rox.Run();
+    }
+
+    private static Vector3 Round(Vector3 v) {
+        return new Vector3(
+            (float)Math.Round(v.X),
+            (float)Math.Round(v.Y),
+            (float)Math.Round(v.Z));
     }
     
     /// <summary>
@@ -67,8 +76,8 @@ public class RoxMain {
     private Vector2 _lookRotation = new Vector2();
 
     // Chunk!
-    private Chunk _chunk = new Chunk(Vector3.Zero);
-    private List<IRenderable> _chunkMesh;
+    private List<Chunk> _chunks;
+    private List<IRenderable> _chunkMeshes;
 
 
     /// <summary>
@@ -81,6 +90,8 @@ public class RoxMain {
 
         Init();
     }
+
+    private GeometryPool _pool = new GeometryPool();
 
     /// <summary>
     /// Initialize GL Window, Shader, and Cube VAO
@@ -100,43 +111,66 @@ public class RoxMain {
         _mainCamera.MoveTo(2, 5, -10);
         _mainCamera.LookAt(_cube.Model, Vector3.UnitY);
 
-        InitChunk();
+        _chunks = InitChunks();
 
-        _chunkMesh = CreateMesh(_chunk);
+        _chunkMeshes = CreateMeshes(_chunks);
     }
+
+    private TerrainGenerator _generator = new TerrainGenerator(new OpenSimplexNoise(123456L));
 
     /// <summary>
     /// 
     /// </summary>
-    private void InitChunk() {
+    private List<Chunk> InitChunks() {
+        /*
         for (uint x = 0; x < Chunk.Width; ++x) {
             for (uint y = 0; y < Chunk.Height; ++y) {
                 for (uint z = 0; z < Chunk.Depth; ++z) {
-                    _chunk.Set(x, y, z, BlockType.Dirt);
+                    var type = y % 2 == 0 || (x + y + z) % 2 == 0 ? BlockType.Air : BlockType.Dirt;
+                    _chunk.Set(x, y, z, type);
                 }
             }
         }
+        */
+        List<Chunk> list = new List<Chunk>();
+
+        for (uint x = 0; x < 3; ++x) {
+            for (uint z = 0; z < 3; ++z) {
+                var pos = new Vector3(x * Chunk.Width, 0, z * Chunk.Depth);
+                list.Add(_generator.Generate(pos));
+            }
+        }
+        return list;
     }
 
-    private List<IRenderable> CreateMesh(Chunk chunk) {
-        var cubes = new List<IRenderable>(Chunk.Width * Chunk.Height * Chunk.Depth);
+    private List<IRenderable> CreateMeshes(List<Chunk> chunks) {
+        float uvWidth = 2048.0f / 16.0f;
+        float uvCell = uvWidth / 2048.0f;
 
-        for (uint x = 0; x < Chunk.Width; ++x) {
-            for (uint y = 0; y < Chunk.Height; ++y) {
-                for (uint z = 0; z < Chunk.Depth; ++z) {
-                    var block = _chunk.At(x, y, z);
-                    if (block.BlockType != BlockType.Air) {
-                        var renderable = new OpenGLRenderable(
-                            new RoxObject(),
-                            Geometry.CreateCubeWithNormals(_program, new Vector3(x, y, z), new Vector3(x + 1, y + 1, z + 1)));
+        float xUv = uvCell * 2.0f;
+        float yUv = uvCell * 15.0f;
+        Vector2 uvCoordinate = new Vector2(xUv, yUv);
+        Vector2 uvOffset = new Vector2(uvCell, uvCell);
 
-                        cubes.Add(renderable);
+        var list = new List<IRenderable>();
+        foreach (var chunk in chunks) {
+            for (uint x = 0; x < Chunk.Width; ++x) {
+                for (uint y = 0; y < Chunk.Height; ++y) {
+                    for (uint z = 0; z < Chunk.Depth; ++z) {
+                        var block = chunk.At(x, y, z);
+                        if (block.BlockType != BlockType.Air) {
+                            foreach (Side side in (Side[])Enum.GetValues(typeof(Side))) {
+                                _pool.AddFace(Quads.QuadFor(side), block.World, uvCoordinate, uvOffset);
+                            }
+                        }
                     }
                 }
             }
+            list.Add(new OpenGLRenderable(new RoxObject(), _pool.ToMesh(_program)));
+            _pool.Reset();
         }
 
-        return cubes;
+        return list;
     }
     
     private void CreateWindow() {
@@ -219,12 +253,12 @@ public class RoxMain {
                 _renderer.Render(_mainCamera, renderable);
             }
 
-            foreach (var voxelVao in _chunkMesh) {
-                _renderer.Render(_mainCamera, voxelVao);
+            foreach (var renderable in _chunkMeshes) {
+                _renderer.Render(_mainCamera, renderable);
             }
-            
+
             //_renderer.Render(_mainCamera, _cube);
-            
+
             SwapBuffers();
         }
 
@@ -272,6 +306,9 @@ public class RoxMain {
         _program.Dispose();
         _simple.Dispose();
         _cube.Dispose();
+        foreach (var chunkMesh in _chunkMeshes) {
+            chunkMesh.Dispose();
+        }
 
         foreach (var renderable in _axis) {
             renderable.Renderable.Dispose();
@@ -376,8 +413,8 @@ public class RoxMain {
         shader["light.Linear"].SetValue(0.045f);
         shader["light.Quadratic"].SetValue(0.0075f);
 
-        shader["material.Color"].SetValue(new Vector3(0.3f, 0.3f, 1.0f));
-        //shader["material.Texture"].SetValue(0);
+        //shader["material.Color"].SetValue(new Vector3(1.0f, 1.0f, 1.0f));
+        shader["material.Texture"].SetValue(0);
 
         return shader;
     }

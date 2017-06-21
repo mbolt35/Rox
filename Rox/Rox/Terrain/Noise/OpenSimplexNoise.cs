@@ -5,9 +5,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Rox.Terrain {
+namespace Rox.Terrain.Noise {
 
-    public class OpenSimplexNoise {
+    public class OpenSimplexNoise : INoise {
         private const double STRETCH_2D = -0.211324865405187;    //(1/Math.sqrt(2+1)-1)/2;
         private const double STRETCH_3D = -1.0 / 6.0;            //(1/Math.sqrt(3+1)-1)/3;
         private const double STRETCH_4D = -0.138196601125011;    //(1/Math.sqrt(4+1)-1)/4;
@@ -22,6 +22,7 @@ namespace Rox.Terrain {
         private byte[] perm2D;
         private byte[] perm3D;
         private byte[] perm4D;
+
 
         private static double[] gradients2D = new double[]
         {
@@ -171,11 +172,15 @@ namespace Rox.Terrain {
             return x < xi ? xi - 1 : xi;
         }
 
+        public long Seed { get; private set; }
+
         public OpenSimplexNoise()
             : this(DateTime.Now.Ticks) {
         }
 
         public OpenSimplexNoise(long seed) {
+            Seed = seed;
+
             perm = new byte[256];
             perm2D = new byte[256];
             perm3D = new byte[256];

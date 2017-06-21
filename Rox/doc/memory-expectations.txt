@@ -7,7 +7,6 @@ BlockType: 1 byte
 ---------------------
     Block: 16 bytes
 
-
 ||  byte  |  byte  ||  byte  |  byte ||  byte  |  byte ||  byte  |  byte  ||  byte  |  byte ||  byte  |  byte ||  byte  |  byte  ||  byte  |  byte ||
 ||                 X                 ||                 Y                 ||                 Z                ||  BT    | --------- PAD ---------- ||
 

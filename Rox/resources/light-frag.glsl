@@ -44,7 +44,7 @@ void main(void)
     vec3 diffuse = light.Diffuse * lightAttenuation * cosTheta;
     vec3 specular = light.Specular * lightAttenuation;
     
-    ///vec3 fragColor = (ambient + diffuse) * texture(material.Texture, FragUV).rgb;
-    vec3 fragColor = (ambient + diffuse) * material.Color;
+    vec3 fragColor = (ambient + diffuse) * texture(material.Texture, FragUV).rgb;
+    //vec3 fragColor = (ambient + diffuse) * material.Color;
     FragColor = vec4(fragColor, 1);
 }
