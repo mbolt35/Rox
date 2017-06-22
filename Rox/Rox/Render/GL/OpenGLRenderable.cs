@@ -19,22 +19,45 @@ namespace Rox.Render.GL {
         private readonly VAO _geometry;
 
         /// <summary>
+        /// AABB representing the bounds of our renderable object
+        /// </summary>
+        private readonly AxisAlignedBoundingBox _bounds;
+
+        /// <summary>
+        /// The bounding box for the renderable object.
+        /// </summary>
+        public AxisAlignedBoundingBox Bounds {
+            get {
+                UpdateBounds();
+
+                return _bounds;
+            }
+        }
+
+        /// <summary>
+        /// Whether or not culling is enabled for this renderable.
+        /// </summary>
+        public bool CullingEnabled { get; set; } = false;
+
+        /// <summary>
         /// The geometric representation of our renderable instance.
         /// </summary>
-        public VAO Geometry {
-            get { return _geometry; }
-        }
+        public VAO Geometry => _geometry;
 
         /// <summary>
         /// The model representation of our renderable instance.
         /// </summary>
-        public IRoxObject Model { 
-            get { return _model; }
-        }
+        public IRoxObject Model => _model;
 
+        /// <summary>
+        /// Creates a new <c>OpenGLRenderable</c> instance.
+        /// </summary>
+        /// <param name="model"></param>
+        /// <param name="geometry"></param>
         public OpenGLRenderable(IRoxObject model, VAO geometry) {
             _model = model;
             _geometry = geometry;
+            _bounds = new AxisAlignedBoundingBox();
         }
 
         /// <summary>
@@ -62,6 +85,13 @@ namespace Rox.Render.GL {
             shader["ModelMatrix"].SetValue(_model.Transform);
 
             _geometry.Draw();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private void UpdateBounds() {
+            _bounds.SetExtents(_model.Position, _model.Position + Vector3.One);
         }
         
         /// <summary>

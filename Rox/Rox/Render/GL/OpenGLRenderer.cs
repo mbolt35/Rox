@@ -38,8 +38,13 @@ namespace Rox.Render.GL {
             Gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         }
 
-        public void Render(Camera camera, IRenderable renderable) 
-        {
+        public void Render(Camera camera, IEnumerable<IRenderable> renderables) {
+            foreach (var renderable in renderables) {
+                Render(camera, renderable);
+            }
+        }
+
+        public void Render(Camera camera, IRenderable renderable) {
             var viewport = camera.Viewport;
             Gl.Viewport(viewport.X, viewport.Y, viewport.Width, viewport.Height);
 

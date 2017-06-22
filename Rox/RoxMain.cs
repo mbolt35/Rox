@@ -12,6 +12,7 @@ using Rox.Voxel;
 using Rox.Geom;
 using Rox.Terrain;
 using Rox.Terrain.Noise;
+using Rox.Voxel.Render;
 
 public class RoxMain {
 
@@ -19,16 +20,9 @@ public class RoxMain {
     /// Entry Point
     /// </summary>
     /// <param name="args"></param>
-    public unsafe static void Main(string[] args) {
+    public static void Main(string[] args) {
         var rox = new RoxMain(1280, 720);
         rox.Run();
-    }
-
-    private static Vector3 Round(Vector3 v) {
-        return new Vector3(
-            (float)Math.Round(v.X),
-            (float)Math.Round(v.Y),
-            (float)Math.Round(v.Z));
     }
     
     /// <summary>
@@ -47,7 +41,7 @@ public class RoxMain {
     private Viewport _viewport;
     private Camera _mainCamera;
 
-    private IRenderable _cube;
+    private OpenGLRenderable _cube;
     private List<ColorRenderable> _axis;
 
     private ShaderProgram _program;
@@ -76,6 +70,9 @@ public class RoxMain {
     private Vector2 _lookRotation = new Vector2();
 
     // Chunk!
+    private GeometryPool _pool = new GeometryPool();
+    private TerrainGenerator _generator = new TerrainGenerator(new OpenSimplexNoise(123456L));
+
     private List<Chunk> _chunks;
     private List<IRenderable> _chunkMeshes;
 
@@ -90,9 +87,7 @@ public class RoxMain {
 
         Init();
     }
-
-    private GeometryPool _pool = new GeometryPool();
-
+    
     /// <summary>
     /// Initialize GL Window, Shader, and Cube VAO
     /// </summary>
@@ -115,23 +110,11 @@ public class RoxMain {
 
         _chunkMeshes = CreateMeshes(_chunks);
     }
-
-    private TerrainGenerator _generator = new TerrainGenerator(new OpenSimplexNoise(123456L));
-
+    
     /// <summary>
     /// 
     /// </summary>
     private List<Chunk> InitChunks() {
-        /*
-        for (uint x = 0; x < Chunk.Width; ++x) {
-            for (uint y = 0; y < Chunk.Height; ++y) {
-                for (uint z = 0; z < Chunk.Depth; ++z) {
-                    var type = y % 2 == 0 || (x + y + z) % 2 == 0 ? BlockType.Air : BlockType.Dirt;
-                    _chunk.Set(x, y, z, type);
-                }
-            }
-        }
-        */
         List<Chunk> list = new List<Chunk>();
 
         for (uint x = 0; x < 3; ++x) {
@@ -152,21 +135,38 @@ public class RoxMain {
         Vector2 uvCoordinate = new Vector2(xUv, yUv);
         Vector2 uvOffset = new Vector2(uvCell, uvCell);
 
+        var blockPos = new Vector3();
         var list = new List<IRenderable>();
         foreach (var chunk in chunks) {
             for (uint x = 0; x < Chunk.Width; ++x) {
                 for (uint y = 0; y < Chunk.Height; ++y) {
                     for (uint z = 0; z < Chunk.Depth; ++z) {
+                        blockPos.X = x;
+                        blockPos.Y = y;
+                        blockPos.Z = z;
+
                         var block = chunk.At(x, y, z);
+
                         if (block.BlockType != BlockType.Air) {
-                            foreach (Side side in (Side[])Enum.GetValues(typeof(Side))) {
-                                _pool.AddFace(Quads.QuadFor(side), block.World, uvCoordinate, uvOffset);
+                            foreach (Side side in Sides.All) {
+                                // Chunk borders TBD
+                                if (Chunk.IsChunkBorder(x, y, z)) {
+                                    _pool.AddFace(Quads.QuadFor(side), block.World, uvCoordinate, uvOffset);
+                                    continue;
+                                }
+
+                                // Check block next to current block in direction of the side. 
+                                //  - If neighbor exists and not air block, don't draw
+                                var dir = Directions.DirectionFor(side);
+                                if (chunk.At(blockPos + dir).BlockType == BlockType.Air) {
+                                    _pool.AddFace(Quads.QuadFor(side), block.World, uvCoordinate, uvOffset);
+                                }
                             }
                         }
                     }
                 }
             }
-            list.Add(new OpenGLRenderable(new RoxObject(), _pool.ToMesh(_program)));
+            list.Add(new ChunkMesh(chunk, _pool.ToMesh(_program)));
             _pool.Reset();
         }
 
@@ -185,12 +185,12 @@ public class RoxMain {
     }
 
     private void InitInput() {
-        Input.Subscribe('w', new Event((bool state) => _forwardDown = state));
-        Input.Subscribe('a', new Event((bool state) => _leftDown = state));
-        Input.Subscribe('s', new Event((bool state) => _backDown = state));
-        Input.Subscribe('d', new Event((bool state) => _rightDown = state));
-        Input.Subscribe('q', new Event((bool state) => _upDown = state));
-        Input.Subscribe('e', new Event((bool state) => _downDown = state));
+        Input.Subscribe('w', new Event(state => _forwardDown = state));
+        Input.Subscribe('a', new Event(state => _leftDown = state));
+        Input.Subscribe('s', new Event(state => _backDown = state));
+        Input.Subscribe('d', new Event(state => _rightDown = state));
+        Input.Subscribe('q', new Event(state => _upDown = state));
+        Input.Subscribe('e', new Event(state => _downDown = state));
 
         RelativeMouse.Enabled = true;
 
@@ -242,7 +242,7 @@ public class RoxMain {
             UpdateScene();
 
             _renderer.Clear();
-            _blockTexture.Use(0);
+            _blockTexture.Use();
 
             foreach (var axis in _axis) {
                 var renderable = (OpenGLRenderable)axis.Renderable;
@@ -253,9 +253,7 @@ public class RoxMain {
                 _renderer.Render(_mainCamera, renderable);
             }
 
-            foreach (var renderable in _chunkMeshes) {
-                _renderer.Render(_mainCamera, renderable);
-            }
+            _renderer.Render(_mainCamera, _chunkMeshes);
 
             //_renderer.Render(_mainCamera, _cube);
 
@@ -327,7 +325,7 @@ public class RoxMain {
     /// Creates a new cube renderable
     /// </summary>
     /// <returns></returns>
-    private IRenderable NewCubeRenderable() {
+    private OpenGLRenderable NewCubeRenderable() {
         var cubeObject = new RoxObject(new Vector3(0, 0, 0));
         var cubeGeometry = NewCubeWithLightShader();
 
@@ -376,21 +374,6 @@ public class RoxMain {
             _program,
             new Vector3(-1, -1, -1),
             new Vector3(1, 1, 1)); 
-        
-        /*
-        float uvWidth = 2048.0f / 16.0f;
-        float uvCell = uvWidth / 2048.0f;
-
-        var x = uvCell * 3.0f;
-        var y = uvCell * 15.0f;
-
-        var cubeVao = CreateQuad(
-            _program, 
-            new Vector2(-1, -1), 
-            new Vector2(2, 2), 
-            new Vector2(x, y), 
-            new Vector2(uvCell, uvCell));
-        */
 
         cubeVao.DisposeChildren = true;
         return cubeVao;
@@ -426,37 +409,5 @@ public class RoxMain {
 
         shader["Color"].SetValue(new Vector3(1.0f, 0.0f, 0.0f));
         return shader;
-    }
-
-    public static VAO CreateQuad(ShaderProgram program, Vector2 location, Vector2 size, Vector2 uvloc, Vector2 uvsize) {
-        Vector3[] vertices = new Vector3[] {
-            new Vector3(location.X, location.Y, 0),
-            new Vector3(location.X + size.X, location.Y, 0),
-            new Vector3(location.X + size.X, location.Y + size.Y, 0),
-            new Vector3(location.X, location.Y + size.Y, 0)
-        };
-
-        Vector2[] uvs = new Vector2[] {
-            uvloc,
-            new Vector2(uvloc.X + uvsize.X, uvloc.Y),
-            new Vector2(uvloc.X + uvsize.X, uvloc.Y + uvsize.Y),
-            new Vector2(uvloc.X, uvloc.Y + uvsize.Y)
-        };
-
-        Vector3[] normals = new Vector3[] {
-            Vector3.UnitZ,
-            Vector3.UnitZ,
-            Vector3.UnitZ,
-            Vector3.UnitZ
-        };
-
-        int[] indices = new int[] { 0, 1, 2, 2, 3, 0 };
-
-        return new VAO(program, 
-            new VBO<Vector3>(vertices), 
-            new VBO<Vector3>(normals), 
-            new VBO<Vector2>(uvs), 
-            new VBO<int>(indices, BufferTarget.ElementArrayBuffer, 
-            BufferUsageHint.StaticRead));
     }
 }

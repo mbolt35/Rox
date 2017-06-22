@@ -1,4 +1,6 @@
-﻿namespace Rox.Geom {
+﻿using Rox.Util;
+
+namespace Rox.Geom {
     
     /// <summary>
     /// Represents the side of a cube/block.
@@ -10,5 +12,13 @@
         Left,
         Front,
         Back
+    }
+
+    /// <summary>
+    /// Helper utility for <see cref="Side"/> enumeration.
+    /// </summary>
+    public static class Sides {
+
+        public static readonly Side[] All = Enums.Values<Side>();
     }
 }

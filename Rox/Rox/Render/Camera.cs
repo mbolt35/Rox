@@ -81,9 +81,11 @@ namespace Rox.Render {
         /// <param name="renderable"></param>
         /// <returns></returns>
         public bool IsVisible(IRenderable renderable) {
-            // TODO: Implement AxisAlignedBoundingBox IRenderable::Bounds()
-            //_viewFrustum.Intersects(renderable.Bounds);
-            return true;
+            if (!renderable.CullingEnabled) {
+                return true;
+            }
+
+            return _viewFrustum.Intersects(renderable.Bounds);
         }
 
         private void UpdateViewport() {

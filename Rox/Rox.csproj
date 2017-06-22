@@ -89,6 +89,7 @@
     <Compile Include="Rox\Render\Viewport.cs" />
     <Compile Include="Rox\Terrain\TerrainGenerator.cs" />
     <Compile Include="Rox\Collections\Array3.cs" />
+    <Compile Include="Rox\Util\Enums.cs" />
     <Compile Include="Rox\Util\GLExtensions.cs" />
     <Compile Include="Rox\Util\GLHelper.cs" />
     <Compile Include="Rox\Util\InstanceNamer.cs" />
@@ -98,6 +99,7 @@
     <Compile Include="Rox\Voxel\Block.cs" />
     <Compile Include="Rox\Voxel\BlockType.cs" />
     <Compile Include="Rox\Voxel\Chunk.cs" />
+    <Compile Include="Rox\Voxel\Render\ChunkMesh.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

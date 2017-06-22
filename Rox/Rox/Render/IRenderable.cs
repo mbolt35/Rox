@@ -1,4 +1,5 @@
-﻿using Rox.Core;
+﻿using OpenGL;
+using Rox.Core;
 
 namespace Rox.Render {
 
@@ -8,9 +9,14 @@ namespace Rox.Render {
     public interface IRenderable {
         
         /// <summary>
-        /// The model representation of the renderable.
+        /// Whether or not culling is enabled for this renderable
         /// </summary>
-        IRoxObject Model { get; }
+        bool CullingEnabled { get; set; }
+
+        /// <summary>
+        /// The bounding box for the renderably geometry.
+        /// </summary>
+        AxisAlignedBoundingBox Bounds { get; }
 
         /// <summary>
         /// Uses camera to draw internal geometrical representation. 
@@ -27,5 +33,7 @@ namespace Rox.Render {
         /// Disposes of any unmanaged resources
         /// </summary>
         void Dispose();
+
+
     }
 }

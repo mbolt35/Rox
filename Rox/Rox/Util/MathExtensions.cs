@@ -25,5 +25,25 @@ namespace OpenGL {
         public static int Hash(this Vector3 @this) {
             return @this.X.GetHashCode() ^ @this.Y.GetHashCode() << 2 ^ @this.Z.GetHashCode() >> 2;
         }
+
+        /*
+        public static void Set(this Vector3 @this, float x, float y, float z) {
+            @this.X = x;
+            @this.Y = y;
+            @this.Z = z;
+        }
+
+        public static void Set(this Vector3 @this, uint x, uint y, uint z) {
+            @this.X = x;
+            @this.Y = y;
+            @this.Z = z;
+        }
+
+        public static void Set(this Vector3 @this, int x, int y, int z) {
+            @this.X = x;
+            @this.Y = y;
+            @this.Z = z;
+        }
+        */
     }
 }
