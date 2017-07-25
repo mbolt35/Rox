@@ -26,24 +26,17 @@ namespace OpenGL {
             return @this.X.GetHashCode() ^ @this.Y.GetHashCode() << 2 ^ @this.Z.GetHashCode() >> 2;
         }
 
-        /*
-        public static void Set(this Vector3 @this, float x, float y, float z) {
-            @this.X = x;
-            @this.Y = y;
-            @this.Z = z;
-        }
+        /// <summary>
+        /// Updates the center of the bounding box. 
+        /// </summary>
+        /// <param name="this"></param>
+        /// <param name="center"></param>
+        public static void UpdateCenter(this AxisAlignedBoundingBox @this, Vector3 center) {
+            var offset = center - @this.Center;
+            var currentMin = @this.Min;
+            var currentMax = @this.Max;
 
-        public static void Set(this Vector3 @this, uint x, uint y, uint z) {
-            @this.X = x;
-            @this.Y = y;
-            @this.Z = z;
+            @this.SetExtents(currentMin - offset, currentMax - offset);
         }
-
-        public static void Set(this Vector3 @this, int x, int y, int z) {
-            @this.X = x;
-            @this.Y = y;
-            @this.Z = z;
-        }
-        */
     }
 }

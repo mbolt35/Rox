@@ -1,5 +1,4 @@
-﻿using System;
-using OpenGL;
+﻿using OpenGL;
 using OpenGL.Platform;
 using System.Diagnostics;
 using Rox.Core;
@@ -7,12 +6,15 @@ using Rox.Render;
 using Rox.Render.GL;
 using Rox.Util;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
+using OpenGL.UI;
 using Rox.Voxel;
 using Rox.Geom;
 using Rox.Terrain;
 using Rox.Terrain.Noise;
 using Rox.Voxel.Render;
+using Console = System.Console;
 
 public class RoxMain {
 
@@ -23,6 +25,28 @@ public class RoxMain {
     public static void Main(string[] args) {
         var rox = new RoxMain(1280, 720);
         rox.Run();
+        //Scratch();
+    }
+
+    private static void Scratch() {
+        var _radius = 8;
+        var min = new Vector3(
+            (Chunk.Width * _radius) / 2.0f,
+            (Chunk.Height * _radius) / 2.0f,
+            (Chunk.Depth * _radius) / 2.0f);
+
+        var max = min + new Vector3(Chunk.Width, Chunk.Height, Chunk.Depth);
+
+        min.X = (int) min.X / Chunk.Width;
+        min.Y = (int) min.Y / Chunk.Height;
+        min.Z = (int) min.Z / Chunk.Depth;
+
+        max.X = (int)max.X / Chunk.Width;
+        max.Y = (int)max.Y / Chunk.Height;
+        max.Z = (int)max.Z / Chunk.Depth;
+
+        Console.WriteLine($"Min: {min}\nMax: {max}");
+        Console.ReadLine();
     }
     
     /// <summary>
@@ -60,7 +84,7 @@ public class RoxMain {
     private long _frameTime = 16;
     private long _lastUpdate = 0;
     private float _rotation = 0.0f;
-
+    
     // Texture
     private Texture _blockTexture;
 
@@ -73,8 +97,12 @@ public class RoxMain {
     private GeometryPool _pool = new GeometryPool();
     private TerrainGenerator _generator = new TerrainGenerator(new OpenSimplexNoise(123456L));
 
+    private readonly FPS _fps = new FPS();
+
     private List<Chunk> _chunks;
     private List<IRenderable> _chunkMeshes;
+
+    private Text _text;
 
 
     /// <summary>
@@ -94,8 +122,14 @@ public class RoxMain {
     private void Init() {
         CreateWindow();
         InitInput();
+        InitUi();
+
+        _fps.OnFrameCount += frameCount => Console.WriteLine($"FPS: {frameCount}");
+        _fps.Start();
 
         _renderer = new OpenGLRenderer();
+
+        //Gl.PolygonMode(MaterialFace.Front, PolygonMode.Line);
 
         _blockTexture = new Texture("resources/terrain.png");
 
@@ -181,6 +215,8 @@ public class RoxMain {
             _mainCamera.Viewport = _viewport;
         });
 
+        Window.OnCloseCallbacks.Add(DisposeScene);
+
         Console.WriteLine($"{GLHelper.DumpComputeShaderCounts()}");
     }
 
@@ -225,19 +261,38 @@ public class RoxMain {
         });
     }
 
+    private void InitUi() {
+        /*
+        UserInterface.InitUI(_viewport.Width, _viewport.Height);
+
+        _text = new Text(Text.FontSize._16pt, "FPS: 0");
+        _text.RelativeTo = Corner.Center;
+        _text.Position = new Point(10, 10);
+        
+        UserInterface.AddElement(_text);
+        */
+    }
+
     private void SwapBuffers() {
         Window.SwapBuffers();
+    }
+
+    private void DumpFps() {
+        //Console.WriteLine($"FPS: {_fps.Sum() / FpsSamples}");
     }
     
     public void Run() {
         // handle events and render the frame
         while (Window.Open) {
+            _fps.Tick();
+
             Window.HandleEvents();
             RelativeMouse.HandleEvents();
 
             if (!IsElapsedFrame()) {
                 continue;
             }
+            _fps.Frame();
 
             UpdateScene();
 
@@ -257,19 +312,21 @@ public class RoxMain {
 
             //_renderer.Render(_mainCamera, _cube);
 
+            //UserInterface.Draw();
             SwapBuffers();
         }
-
-        DisposeScene();
     }
 
     public bool IsElapsedFrame() {
         var currentTime = _stopwatch.ElapsedMilliseconds;
-        if (currentTime - _lastUpdate < _frameTime) {
+        var delta = currentTime - _lastUpdate;
+
+        if (delta < _frameTime) {
             return false;
         }
 
         _lastUpdate = currentTime;
+
         return true;
     }
 
@@ -311,6 +368,9 @@ public class RoxMain {
         foreach (var renderable in _axis) {
             renderable.Renderable.Dispose();
         }
+
+        //UserInterface.Dispose();
+        //BMFont.Dispose();
     }
 
     /// <summary>
@@ -398,7 +458,6 @@ public class RoxMain {
 
         //shader["material.Color"].SetValue(new Vector3(1.0f, 1.0f, 1.0f));
         shader["material.Texture"].SetValue(0);
-
         return shader;
     }
 
